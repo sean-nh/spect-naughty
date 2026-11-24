@@ -25,6 +25,17 @@
 
         </activity>
 
+        <!-- lets the user switch on "Notification access", which is what allows reading the now-playing info -->
+        <service
+            android:name=".NowPlayingListener"
+            android:label="@string/app_name"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

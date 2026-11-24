@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Spect-Analyzery</title>
+<title>Spectr-Acular</title>
 <style>
-  html,body{margin:0;height:100%;background:#05060a;color:#cfd6e4;font-family:system-ui,Segoe UI,Roboto,sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:#05060a;color:#cfd6e4;font-family:system-ui,Segoe UI,Roboto,sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
   canvas{position:fixed;inset:0;width:100%;height:100%;display:block;transition:opacity .8s}
   #start{position:fixed;inset:0;display:flex;flex-direction:column;gap:18px;align-items:center;justify-content:center;background:rgba(5,6,10,.92);z-index:5;text-align:center;padding:24px}
   #start h1{margin:0;font-size:clamp(28px,5vw,56px);letter-spacing:.04em}
@@ -23,6 +23,23 @@
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:44px;height:44px;border-radius:50%;background:#4f8cff;margin-top:-16px;border:3px solid #fff}
   #msg{position:fixed;top:12px;left:0;right:0;text-align:center;font-size:22px;color:#ffb86b;z-index:6;pointer-events:none}
   #badge{position:fixed;left:10px;top:8px;font-size:14px;opacity:.6;z-index:6;pointer-events:none}
+  /* now playing card */
+  #np{position:fixed;left:16px;top:34px;max-width:62vw;display:flex;gap:18px;align-items:center;padding:14px 20px 14px 14px;border-radius:22px;background:rgba(8,10,16,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:3;pointer-events:none}
+  #npart{width:104px;height:104px;border-radius:14px;object-fit:cover;background:#1a1f2b;flex:none;display:none;transition:opacity .3s}
+  #np.paused #npart{opacity:.45}
+  #nptxt{min-width:0;display:flex;flex-direction:column;gap:2px}
+  #npt{font-size:30px;font-weight:650;line-height:1.15;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #npa{font-size:22px;color:#b9c3d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #npapp{font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:#6fb3ff}
+  #npctl{display:none;gap:12px;margin-top:10px}
+  #np.ctl #npctl{display:flex}
+  /* no song info (access off, or nothing playing): show just the buttons, and only while the controls are showing */
+  #np.bare{display:none}
+  #np.bare.ctl{display:flex}
+  #np.bare #npart,#np.bare #npt,#np.bare #npa,#np.bare #npapp{display:none}
+  #np.bare #npctl{margin-top:0}
+  #npctl button{min-width:84px;min-height:64px;padding:0 20px;border-radius:16px;pointer-events:auto}
+  #npctl svg{width:34px;height:34px;fill:#fff;display:block;margin:auto}
   #idle{position:fixed;left:0;right:0;top:42%;text-align:center;font-size:clamp(20px,3vw,34px);letter-spacing:.12em;opacity:0;z-index:3;pointer-events:none;transition:opacity .6s;color:#9aa6c0}
 </style>
 </head>
@@ -31,8 +48,19 @@
 <div id="msg"></div>
 <div id="badge"></div>
 <div id="idle">WAITING FOR MUSIC&hellip;</div>
+<div id="np">
+  <img id="npart" alt="">
+  <div id="nptxt">
+    <div id="npt"></div><div id="npa"></div><div id="npapp"></div>
+    <div id="npctl">
+      <button id="prev" class="alt" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
+      <button id="pp" class="alt" aria-label="Play or pause"></button>
+      <button id="next" class="alt" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18V6l8.5 6z"/></svg></button>
+    </div>
+  </div>
+</div>
 <div id="start">
-  <h1>SPECT-ANALYZERY</h1>
+  <h1>SPECTR-ACULAR</h1>
   <p>Plays along with whatever your radio is playing. Tap Start listening and allow audio access when asked.</p>
   <button id="go">Start listening</button>
   <button id="demo" class="alt">Demo</button>
@@ -44,6 +72,7 @@
   <button id="style" class="alt">Style</button>
   <button id="theme" class="alt">Theme</button>
   <button id="src" class="alt">Source</button>
+  <button id="npen" class="alt" style="display:none">Enable Now Playing</button>
   <button id="full" class="alt">Fullscreen</button>
 </div>
 <script>
@@ -55,15 +84,16 @@ function resize(){dpr=Math.min(window.devicePixelRatio||1,2);W=cv.width=innerWid
 addEventListener('resize',resize);resize();
 
 // ---------- settings (remembered between launches) ----------
-const styles=['Bars','Mirror','Radial','Wave','Tunnel'];
-const themes=[{n:'Aurora',a:200,b:360},{n:'Fire',a:0,b:55},{n:'Ocean',a:165,b:235},{n:'Neon',a:290,b:120},{n:'Ice',a:185,b:220}];
+const styles=['Bars','Mirror','Radial','Wave','Tunnel','Gauge','Waterfall','Particles'];
+// the last theme, "Album", takes its colours from the cover art of the song that is playing
+const themes=[{n:'Aurora',a:200,b:360},{n:'Fire',a:0,b:55},{n:'Ocean',a:165,b:235},{n:'Neon',a:290,b:120},{n:'Ice',a:185,b:220},{n:'Album',a:200,b:260}];
 const S={gain:2.5,bars:48,style:0,theme:0,auto:true,src:'auto'};
 try{Object.assign(S,JSON.parse(localStorage.getItem('spect.settings')||'{}'))}catch(_){}
 S.style=Math.max(0,Math.min(styles.length-1,S.style|0));
 S.theme=Math.max(0,Math.min(themes.length-1,S.theme|0));
 S.bars=Math.max(16,Math.min(96,S.bars|0))||48;
 function save(){try{localStorage.setItem('spect.settings',JSON.stringify(S))}catch(_){}}
-let toastT;function toast(t){$('msg').textContent=t;clearTimeout(toastT);toastT=setTimeout(()=>$('msg').textContent='',2200)}
+let toastT;function toast(t,ms){$('msg').textContent=t;clearTimeout(toastT);toastT=setTimeout(()=>$('msg').textContent='',ms||2200)}
 function syncUI(){
   $('gain').value=S.gain;$('bars').value=S.bars;
   $('auto').textContent='Auto gain: '+(S.auto?'On':'Off');$('auto').classList.toggle('on',S.auto);
@@ -142,7 +172,7 @@ async function toggleSource(){
   save();toast(mode==='native'?'Source: direct audio':'Source: microphone');
 }
 $('go').onclick=startAuto;
-$('demo').onclick=()=>{mode='demo';begin()};
+$('demo').onclick=()=>{mode='demo';begin();np={title:'Demo Track',artist:'Spectr-Acular',album:'',app:'Demo',playing:true,art:''};npRender()};
 
 // ---------- spectrum ----------
 function demoSpectrum(n){
@@ -235,6 +265,9 @@ function draw(){
     case 2:return drawRadial(n);
     case 3:return drawWave(n);
     case 4:return drawTunnel(n,dt,now,topI);
+    case 5:return drawGauge(n);
+    case 6:return drawWaterfall(n,dt);
+    case 7:return drawParticles(n,dt,now);
     default:return drawBars(n,S.style===1);
   }
 }
@@ -300,6 +333,146 @@ function drawTunnel(n,dt,now,topI){
   ctx.shadowBlur=0;
 }
 
+// two analog VU meters: left follows the bass and low mids, right follows the highs
+let needle=[0,0];
+function drawGauge(n){
+  const R=Math.min(W*0.215,H*0.42),cy=H*0.62,cxs=[W*0.27,W*0.73],a0=Math.PI*1.12,a1=Math.PI*1.88;
+  const bands=[[0,0.3],[0.55,1]],names=['BASS','TREBLE'];
+  ctx.textAlign='center';ctx.lineCap='round';
+  for(let k=0;k<2;k++){
+    const cx=cxs[k];let s=0,c=0;
+    for(let i=Math.floor(n*bands[k][0]);i<Math.ceil(n*bands[k][1]);i++){s+=vals[i];c++}
+    const lv=Math.min(1,(c?s/c:0)*1.9+(k===0?bass*0.3:0));
+    needle[k]+=(lv-needle[k])*(lv>needle[k]?0.35:0.09);
+    const a=a0+(a1-a0)*needle[k],h=hue(k*(n-1),n);
+    ctx.shadowBlur=0;
+    ctx.lineWidth=R*0.05;ctx.strokeStyle='rgba(255,255,255,.14)';
+    ctx.beginPath();ctx.arc(cx,cy,R,a0,a1);ctx.stroke();
+    ctx.lineWidth=R*0.07;ctx.strokeStyle=`hsl(${h},95%,60%)`;ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=(10+flash*14)*dpr;
+    ctx.beginPath();ctx.arc(cx,cy,R*0.97,a0,a);ctx.stroke();
+    ctx.shadowBlur=0;
+    for(let j=0;j<=10;j++){ // scale ticks, the last three are the "hot" zone
+      const ta=a0+(a1-a0)*j/10,r1=R*0.88,r2=R*(j%5===0?0.7:0.78);
+      ctx.lineWidth=R*(j%5===0?0.035:0.022);ctx.strokeStyle=j>=8?'#ff4d4d':'rgba(255,255,255,.75)';
+      ctx.beginPath();ctx.moveTo(cx+Math.cos(ta)*r1,cy+Math.sin(ta)*r1);ctx.lineTo(cx+Math.cos(ta)*r2,cy+Math.sin(ta)*r2);ctx.stroke();
+    }
+    ctx.strokeStyle='#fff';ctx.lineWidth=R*0.04;ctx.shadowColor=`hsl(${h},100%,60%)`;ctx.shadowBlur=(12+flash*10)*dpr;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*R*0.86,cy+Math.sin(a)*R*0.86);ctx.stroke();
+    ctx.shadowBlur=0;ctx.fillStyle='#1b2030';ctx.strokeStyle='#fff';ctx.lineWidth=R*0.02;
+    ctx.beginPath();ctx.arc(cx,cy,R*0.08,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.55)';ctx.font=`600 ${Math.round(R*0.11)}px system-ui,sans-serif`;
+    ctx.fillText(names[k],cx,cy+R*0.34);
+  }
+}
+// scrolling spectrogram: time runs right to left, low notes at the bottom
+let wfc=null,wfx=null;
+function drawWaterfall(n,dt){
+  if(!wfc||wfc.width!==W||wfc.height!==H){wfc=document.createElement('canvas');wfc.width=W;wfc.height=H;wfx=wfc.getContext('2d');wfx.fillStyle='#05060a';wfx.fillRect(0,0,W,H)}
+  const step=Math.max(1,Math.round(3*dpr*dt*60)),th=themes[S.theme],rh=H/n;
+  wfx.drawImage(wfc,-step,0);
+  for(let i=0;i<n;i++){
+    const v=Math.min(1,vals[i]);
+    wfx.fillStyle=`hsl(${th.a+(th.b-th.a)*Math.min(1,v*1.1)},95%,${3+v*60}%)`;
+    wfx.fillRect(W-step,H-(i+1)*rh,step,rh+1);
+  }
+  ctx.globalAlpha=1;ctx.drawImage(wfc,0,0);
+}
+// sparks rise from the spectrum and the kick throws a burst from the middle
+let parts=[];
+function drawParticles(n,dt,now){
+  const cx=W/2,cy=H*0.5,base=Math.min(W,H);
+  if(flash>0.6&&now-lastSpawn>110){
+    lastSpawn=now;const cnt=26+Math.round(bass*40);
+    for(let k=0;k<cnt;k++){const a=Math.random()*Math.PI*2,sp=(0.25+Math.random()*0.9)*base*(0.5+bass);
+      parts.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,dec:0.35+Math.random()*0.5,h:hue(Math.random()*n,n),s:(2+Math.random()*4)*dpr})}
+  }
+  const stepI=Math.max(1,Math.floor(n/24));
+  for(let i=0;i<n;i+=stepI){
+    if(Math.random()<vals[i]*0.5*dt*60)parts.push({x:(i+0.5)/n*W,y:H*0.96,vx:(Math.random()-0.5)*base*0.08,vy:-(0.25+vals[i]*0.9)*base*(0.7+Math.random()*0.6),life:1,dec:0.4+Math.random()*0.5,h:hue(i,n),s:(1.5+Math.random()*3)*dpr});
+  }
+  if(parts.length>600)parts.splice(0,parts.length-600);
+  ctx.globalCompositeOperation='lighter';
+  for(let k=parts.length-1;k>=0;k--){
+    const p=parts[k];p.life-=p.dec*dt;if(p.life<=0){parts.splice(k,1);continue}
+    p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=base*0.45*dt;p.vx*=0.995;
+    ctx.fillStyle=`hsla(${p.h},95%,60%,${p.life*0.85})`;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.s*(0.4+p.life),0,Math.PI*2);ctx.fill();
+  }
+  const cr=base*(0.05+bass*0.1),g=ctx.createRadialGradient(cx,cy,0,cx,cy,cr*2.2);
+  g.addColorStop(0,`hsla(${hue(0,n)},95%,65%,${0.55+flash*0.4})`);g.addColorStop(1,'transparent');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,cr*2.2,0,Math.PI*2);ctx.fill();
+  ctx.globalCompositeOperation='source-over';
+}
+
+// ---------- now playing (song info + play / pause / next / previous from whatever app is playing) ----------
+const ICON_PLAY='<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',ICON_PAUSE='<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+let np={title:'',artist:'',album:'',app:'',playing:false,art:''};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const natMedia=(m,o)=>window.Capacitor.nativePromise('SpectMedia',m,o||{});
+function npRender(){
+  const has=!!(np.title||np.artist);
+  $('np').classList.toggle('bare',!has);
+  $('np').style.display=(!has&&!window.Capacitor)?'none':''; // the bare buttons only make sense inside the app
+  $('np').classList.toggle('paused',!np.playing);
+  $('npt').textContent=np.title;
+  $('npa').textContent=[np.artist,np.album].filter(Boolean).join(' • ');
+  $('npapp').textContent=np.app;
+  $('pp').innerHTML=np.playing?ICON_PAUSE:ICON_PLAY;
+  const img=$('npart');
+  if(np.art){img.src='data:image/jpeg;base64,'+np.art;img.style.display='block'}else{img.removeAttribute('src');img.style.display='none'}
+}
+// the "Album" theme: pick the dominant colour of the cover art
+function artTheme(){
+  const A=themes[themes.length-1];
+  if(!np.art){A.a=200;A.b=260;return}
+  const im=new Image();
+  im.onload=()=>{
+    try{
+      const c=document.createElement('canvas');c.width=c.height=24;const x=c.getContext('2d');x.drawImage(im,0,0,24,24);
+      const d=x.getImageData(0,0,24,24).data;let sx=0,sy=0,tw=0;
+      for(let i=0;i<d.length;i+=4){
+        const r=d[i]/255,g=d[i+1]/255,b=d[i+2]/255,mx=Math.max(r,g,b),mn=Math.min(r,g,b),sat=mx?(mx-mn)/mx:0,w=sat*mx;
+        if(w<0.08)continue;
+        let h=mx===mn?0:mx===r?((g-b)/(mx-mn))%6:mx===g?(b-r)/(mx-mn)+2:(r-g)/(mx-mn)+4;h*=60*Math.PI/180;
+        sx+=Math.cos(h)*w;sy+=Math.sin(h)*w;tw+=w;
+      }
+      if(tw>1){const h=(Math.atan2(sy,sx)*180/Math.PI+360)%360;A.a=h-30;A.b=h+50}
+    }catch(_){}
+  };
+  im.src='data:image/jpeg;base64,'+np.art;
+}
+function npApply(e){
+  if(e.active===false){np.title=np.artist=np.album=np.app='';np.playing=false;np.art='';artTheme()}
+  else{np.title=e.title||'';np.artist=e.artist||'';np.album=e.album||'';np.app=e.app||'';np.playing=!!e.playing}
+  if(typeof e.art==='string'){np.art=e.art;artTheme()}
+  npRender();
+}
+async function npInit(){
+  for(let i=0;i<50&&!(window.Capacitor&&window.Capacitor.nativePromise&&window.Capacitor.addListener);i++)await sleep(100);
+  const C=window.Capacitor;if(!C||!C.nativePromise||!C.addListener)return;
+  C.addListener('SpectMedia','media',npApply);
+  for(;;){ // song info needs "Notification access"; keep checking so it starts as soon as the user switches it on
+    let en=false;
+    try{en=!!(await natMedia('start')).enabled}catch(_){}
+    $('npen').style.display=en?'none':'';
+    await sleep(en?6000:2500);
+  }
+}
+function npControl(a){
+  if(a==='toggle'){np.playing=!np.playing;npRender()}
+  if(window.Capacitor&&window.Capacitor.nativePromise)natMedia('control',{action:a}).catch(()=>{});
+}
+$('prev').onclick=()=>npControl('prev');
+$('pp').onclick=()=>npControl('toggle');
+$('next').onclick=()=>npControl('next');
+$('npen').onclick=async()=>{
+  let ok=false;try{ok=!!(await natMedia('openSettings')).opened}catch(_){}
+  toast(ok?'Switch on '+document.title+'. If it is greyed out: App info > menu > Allow restricted settings'
+          :'No notification-access screen on this radio. The play, next and previous buttons still work.',8000);
+};
+npRender();
+npInit();
+
 draw();
 if(window.Capacitor)startAuto(); // auto-start inside the Android app
 
@@ -307,20 +480,31 @@ if(window.Capacitor)startAuto(); // auto-start inside the Android app
 $('gain').oninput=e=>{S.gain=+e.target.value;S.auto=false;gEff=S.gain;syncUI();save()};
 $('auto').onclick=()=>{S.auto=!S.auto;syncUI();save();toast('Auto gain '+(S.auto?'on':'off'))};
 $('bars').oninput=e=>{S.bars=+e.target.value;vals=[];peaks=[];save()};
-$('style').onclick=()=>{S.style=(S.style+1)%styles.length;rings=[];ctx.clearRect(0,0,W,H);syncUI();save()};
-$('theme').onclick=()=>{S.theme=(S.theme+1)%themes.length;syncUI();save()};
+function changeStyle(d){S.style=(S.style+d+styles.length)%styles.length;rings=[];parts=[];wfc=null;ctx.clearRect(0,0,W,H);syncUI();save();toast('Style: '+styles[S.style])}
+function changeTheme(d){S.theme=(S.theme+d+themes.length)%themes.length;syncUI();save();toast('Theme: '+themes[S.theme].n)}
+$('style').onclick=()=>changeStyle(1);
+$('theme').onclick=()=>changeTheme(1);
 $('src').onclick=toggleSource;
 $('full').onclick=()=>{const d=document.documentElement;document.fullscreenElement?document.exitFullscreen():(d.requestFullscreen&&d.requestFullscreen())};
 
-let hideT;function hideLater(){clearTimeout(hideT);$('bar').classList.remove('hide');hideT=setTimeout(()=>$('bar').classList.add('hide'),6000)}
+let hideT;function hideLater(){clearTimeout(hideT);$('bar').classList.remove('hide');$('np').classList.add('ctl');hideT=setTimeout(()=>{$('bar').classList.add('hide');$('np').classList.remove('ctl')},6000)}
 ['pointerdown','pointermove','keydown'].forEach(ev=>addEventListener(ev,()=>{if($('start').style.display!=='flex')hideLater()}));
 // long-press on the picture (not on the controls) toggles the small debug badge
-let lpT;
+let lpT,sw=null;
 addEventListener('pointerdown',e=>{
-  if(e.target.closest&&e.target.closest('#bar,#start'))return;
+  if(e.target.closest&&e.target.closest('#bar,#start,#np'))return;
   clearTimeout(lpT);lpT=setTimeout(()=>{badgeOn=!badgeOn;$('badge').textContent='';toast('Debug info '+(badgeOn?'on':'off'))},900);
+  sw={x:e.clientX,y:e.clientY,t:performance.now()};
 });
 ['pointerup','pointercancel','pointermove'].forEach(ev=>addEventListener(ev,()=>clearTimeout(lpT)));
+// swipe left / right = next / previous style, swipe up / down = next / previous theme
+addEventListener('pointerup',e=>{
+  if(!sw)return;const dx=e.clientX-sw.x,dy=e.clientY-sw.y,ms=performance.now()-sw.t;sw=null;
+  if(ms>800||$('start').style.display==='flex')return;
+  if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.6)changeStyle(dx<0?1:-1);
+  else if(Math.abs(dy)>70&&Math.abs(dy)>Math.abs(dx)*1.6)changeTheme(dy<0?1:-1);
+});
+addEventListener('pointercancel',()=>{sw=null});
 addEventListener('visibilitychange',()=>{if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume()});
 })();
 </script>
