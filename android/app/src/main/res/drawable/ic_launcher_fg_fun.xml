@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- equalizer bars either side of the face -->
+    <path android:pathData="M21.5,50L21.5,66" android:strokeColor="#A5F3FC" android:strokeWidth="3.6" android:strokeLineCap="round"/>
+    <path android:pathData="M27,44L27,72" android:strokeColor="#4DF3FF" android:strokeWidth="3.6" android:strokeLineCap="round"/>
+    <path android:pathData="M81,44L81,72" android:strokeColor="#4DF3FF" android:strokeWidth="3.6" android:strokeLineCap="round"/>
+    <path android:pathData="M86.5,50L86.5,66" android:strokeColor="#A5F3FC" android:strokeWidth="3.6" android:strokeLineCap="round"/>
+    <!-- horns -->
+    <path android:pathData="M35,44 Q27,28 38,21 Q39,33 49,38 Z" android:fillColor="#FF2D55" android:strokeColor="#2B1055" android:strokeWidth="1.8" android:strokeLineJoin="round"/>
+    <path android:pathData="M73,44 Q81,28 70,21 Q69,33 59,38 Z" android:fillColor="#FF2D55" android:strokeColor="#2B1055" android:strokeWidth="1.8" android:strokeLineJoin="round"/>
+    <!-- face -->
+    <path android:pathData="M54,58m-24,0a24,24 0,1 1,48 0a24,24 0,1 1,-48 0" android:fillColor="#FFD23F" android:strokeColor="#2B1055" android:strokeWidth="2.4"/>
+    <!-- cheeks -->
+    <path android:pathData="M38,62m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" android:fillColor="#99FF5C8A"/>
+    <path android:pathData="M70,62m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" android:fillColor="#99FF5C8A"/>
+    <!-- open eye + winking eye -->
+    <path android:pathData="M46,54m-3.2,0a3.2,3.2 0,1 1,6.4 0a3.2,3.2 0,1 1,-6.4 0" android:fillColor="#2B1055"/>
+    <path android:pathData="M58,55 Q63,49.5 68,55" android:fillColor="#00000000" android:strokeColor="#2B1055" android:strokeWidth="2.8" android:strokeLineCap="round"/>
+    <!-- grin with tongue sticking out -->
+    <path android:pathData="M42,64 Q54,80 66,64 Q54,67 42,64 Z" android:fillColor="#2B1055"/>
+    <path android:pathData="M49,71.5 Q54,81 59,71.5 Q54,69.5 49,71.5 Z" android:fillColor="#FF5C8A" android:strokeColor="#2B1055" android:strokeWidth="1.2" android:strokeLineJoin="round"/>
+</vector>

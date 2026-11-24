@@ -2,9 +2,9 @@
 
 An audio spectrum visualizer for a custom Android car radio (Android 13). It was originally a single web page (`index.html`) and is now packaged as an Android app with Capacitor.
 
-- **App name:** Spect-Naughty (called Spect-Analyzery before v1.5; the package ID below did not change, so it installs over the old app)
-- **Package ID:** `com.hector.spectrum`
-- **Version:** 1.5 (versionCode 6)
+- **App name:** Spect-Naughty (called Spect-Analyzery before v1.5)
+- **Package ID:** `com.hector.spectnaughty`. Versions up to 1.5 used `com.hector.spectrum`. Because the ID is new, this app installs **next to** any older Spect-Analyzery or modified copy instead of replacing it, and it can never clash with a copy signed with a different key. It starts as a new app: it asks for audio permission again and does not inherit the old app's settings. (The code's internal package folder is still `com/hector/spectrum`; that name is separate from the app's ID.)
+- **Version:** 1.6 (versionCode 7)
 - **Built:** 2026-11-24 (v1.1 built 2026-11-20, v1.2 added the news ticker)
 - **Target:** Android 13 car head unit, landscape. The app also runs on newer Android versions.
 
@@ -12,7 +12,7 @@ An audio spectrum visualizer for a custom Android car radio (Android 13). It was
 
 The file to install is **`Spect-Naughty.apk`** (in this folder). It is a signed release build.
 
-1. Uninstall any older copy first. Earlier test builds were signed with a different key.
+1. You do not need to uninstall an older Spect-Analyzery. Spect-Naughty has its own app ID and installs beside it. (Uninstall the old one later if you don't want two icons.)
 2. Copy the APK to the radio (USB drive or `adb`) and open it.
 3. Allow "Install unknown apps" for the app you opened it with (Settings, then Apps, then Special app access, then Install unknown apps).
 4. Or use `adb install Spect-Naughty.apk` (needs USB debugging on the radio).
@@ -68,7 +68,7 @@ A "LATEST NEWS" reading pane runs down the right side of the screen, a bit like 
 | `android/` | The Android project (Capacitor). |
 | `android/app/src/main/java/com/hector/spectrum/MainActivity.java` | Fullscreen, keep-screen-on, permission request, WebView mic handling. |
 | `android/app/src/main/java/com/hector/spectrum/VisualizerPlugin.java` | Native audio tap. |
-| `android/app/src/main/res/` | Icon (vector bars on a dark gradient) and app name. |
+| `android/app/src/main/res/` | Icon (a winking devil face with equalizer bars on a pink-purple gradient, plus a single-colour version for themed icons) and app name. |
 | `Spect-Naughty.apk` | The finished release APK. |
 
 ## Rebuild
@@ -143,6 +143,6 @@ Please include:
 | Bars flat while music plays | Check the badge. If it says "direct audio" but the raw peak is about 0, the radio isn't exposing its audio. Tap **Source** to switch to the microphone. |
 | Bars move but are too small or too large | Turn Auto gain off and set Gain manually, or turn it back on. |
 | "Audio unavailable: NotAllowedError" | Audio permission was denied. Re-enable it in Android Settings, Apps, Spect-Naughty, Permissions, then reopen the app. |
-| App won't install | Allow "Install unknown apps", and uninstall any older copy first. |
+| App won't install | Allow "Install unknown apps". If it still fails, uninstall an earlier Spect-Naughty (v1.6 or newer) that was signed with a different key. |
 | Controls won't show | Tap the picture, not the edge of the screen. |
 | Start screen shows instead of the visualizer | Tap **Start listening**, or **Demo** to check the display. |
