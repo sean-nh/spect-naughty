@@ -14,6 +14,7 @@ import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Base64;
 import android.util.Log;
@@ -260,13 +261,33 @@ public class NowPlayingPlugin extends Plugin {
                 if (bmp == null) bmp = md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
             }
             artKey = pkg + "|" + title + "|" + artist + "|" + album + "|" + (bmp == null ? 0 : System.identityHashCode(bmp));
-            sig = title + "|" + artist + "|" + album + "|" + playing + "|" + artKey;
+            // progress: length of the song (0 if unknown, e.g. live streams) and where it is right now
+            long dur = md != null ? md.getLong(MediaMetadata.METADATA_KEY_DURATION) : 0;
+            if (dur < 0) dur = 0;
+            PlaybackState ps = mc.getPlaybackState();
+            long pos = -1;
+            float speed = 0;
+            long posStamp = 0;
+            if (ps != null) {
+                pos = ps.getPosition();
+                posStamp = ps.getLastPositionUpdateTime();
+                if (playing) speed = ps.getPlaybackSpeed();
+                if (pos >= 0 && speed > 0 && posStamp > 0) {
+                    pos += (long) ((SystemClock.elapsedRealtime() - posStamp) * speed); // where it is now, not when the app last said
+                }
+                if (pos >= 0 && dur > 0 && pos > dur) pos = dur;
+            }
+            sig = title + "|" + artist + "|" + album + "|" + playing + "|" + artKey + "|" + dur + "|" + posStamp
+                + "|" + (ps == null ? -1 : ps.getPosition()) + "|" + speed;
             o.put("active", true);
             o.put("title", title);
             o.put("artist", artist);
             o.put("album", album);
             o.put("playing", playing);
             o.put("app", appName(pkg));
+            o.put("dur", dur);
+            o.put("pos", pos);
+            o.put("speed", speed);
         }
         if (!force && sig.equals(lastSig)) return;
         lastSig = sig;

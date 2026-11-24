@@ -4,7 +4,7 @@ An audio spectrum visualizer for a custom Android car radio (Android 13). It was
 
 - **App name:** Spectr-Acular (earlier names: Spect-Analyzery, and Spect-Naughty for v1.6)
 - **Package ID:** `com.hector.spectanalyzery` (v1.7 and newer). Earlier builds used `com.hector.spectrum` (up to v1.1) and `com.hector.spectnaughty` (v1.6). Because the ID is different, this app installs **next to** those instead of replacing them, and it can never clash with a copy signed with a different key. Versions 1.7 and newer update each other normally. (The code's internal package folder is still `com/hector/spectrum`; that name is separate from the app's ID.)
-- **Version:** 2.1 (versionCode 11)
+- **Version:** 2.2 (versionCode 12)
 - **Built:** 2026-11-24 (v1.1 built 2026-11-20)
 - **Target:** Android 13 car head unit, landscape. The app also runs on newer Android versions.
 
@@ -34,6 +34,7 @@ The app asks to "record audio". That is Android's wording. In normal use the app
 - **Source:** switch between direct audio and the microphone.
 - **Performance:** Normal or Light. Light is for slow screens: it draws about 30 frames per second instead of 60, at lower resolution, with no glow, fewer particles and a plain (not blurred) card background. The app also suggests it once, with a message, if it measures the display running below about 22 frames per second.
 - **Clock:** a small, dim clock in the top-right corner (it follows the radio's 12 or 24 hour setting, and gets a little brighter while the controls are showing). The button turns it off.
+- **Progress bar:** see "Now Playing".
 - **Enable Now Playing:** only shows while notification access is off. It opens the Android screen where you switch it on.
 - **Long-press the picture** (about 1 second, not on the controls) to toggle the debug badge in the top-left corner.
 - **Settings are remembered** between launches (gain, bars, style, theme, auto-gain, source).
@@ -50,6 +51,8 @@ The Visualizer API needs the `RECORD_AUDIO` permission even though it does not r
 ## Now Playing
 
 The top-left card shows the cover art, song title, artist, album and the app that is playing (YouTube, Spotify, YouTube Music, a browser, and so on). The three buttons control that same app.
+
+- **Progress bar (2.2).** Under the app name: elapsed time, a thin bar in the current theme colour, and the total length (for example `1:23 ===---- 3:45`). It moves smoothly between the updates the phone sends, freezes when the song is paused, and follows seeks made in the music app. It is display only (no seeking from this screen). It is hidden when the app does not report a length, such as live streams or radio-style stations, and when song info is off.
 
 - **Song info needs "notification access" once.** Android only lets an app read what other apps are playing after the user switches this on. Tap **Enable Now Playing**, find the app in the list and turn it on. The card appears within a few seconds, and disappears again if you turn access off.
 - **Android 13 "restricted settings".** For an app installed from an APK file (not from the Play Store), the switch can be greyed out. Fix: Android Settings, Apps, this app, the three-dot menu, **Allow restricted settings**, then try again. Some head units hide this screen entirely.
@@ -124,12 +127,14 @@ Version 2.1, same emulator and Chrome test source:
 
 - Clock shows top right, dim, and brightens with the controls; the Clock button is in the controls: **OK.**
 - Performance: Normal ran at 61 fps and Light at 30 fps (shown in the debug badge), with fewer and lighter particles: **OK.** The emulator is fast, so the automatic "display looks slow" suggestion was **not** triggered or tested.
+- Progress bar (2.2): shows elapsed and total time from Chrome's media session, grows at the right speed (about 12 px per second for a 30 second track), freezes on pause, resumes on play, and wraps when the track loops: **OK.** Measured from screenshots, not just by eye.
 - Media-key backup: with a session that lists skip actions, Next went through the session; with a session that does not list them (actions without skip), Next and Previous went through media keys, and Pause still used the session: **OK.**
 
 ## Not tested yet (check these on the real radio)
 
 - Whether the radio's audio is visible to the Visualizer. Turn on the debug badge. It should say **direct audio** while music plays. If it says **microphone**, the radio blocks the tap and the mic is being used.
 - Real-world bass response and gain. The direct audio capture has coarse low-frequency resolution (about 40 Hz per step), so the lowest bars may look alike.
+- The progress bar with real streaming apps: each app decides whether it reports a length and how often it updates the position. A restart of the bar to zero on a new song was not tested (the Chrome test page only changes the title on Next).
 - Song info and the buttons with **YouTube, Spotify and other real streaming apps**. Only a test page in Chrome was used. Apps that publish a standard media session should work the same, but apps differ in what they publish, and some give no cover art.
 - Whether the real radio has the notification-access screen, and whether "Allow restricted settings" is needed or even available there.
 - Mirror and Radial styles, Ice, Ocean and Neon themes, and the screen dimming after about 45 seconds of silence. The code is in place but these were not viewed.

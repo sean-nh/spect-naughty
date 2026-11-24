@@ -36,6 +36,12 @@
   #npt{font-size:30px;font-weight:650;line-height:1.15;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #npa{font-size:22px;color:#b9c3d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #npapp{font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:#6fb3ff}
+  /* song progress: elapsed time, a thin bar in the theme colour, total time. Read-only, hidden when the length is unknown (live streams) */
+  #npp{display:none;align-items:center;gap:10px;margin-top:8px;min-width:300px;font-size:15px;color:#9aa6c0;font-variant-numeric:tabular-nums}
+  #np.hasprog #npp{display:flex}
+  #np.bare #npp{display:none}
+  #npbar{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.18);overflow:hidden}
+  #npfill{height:100%;width:0;border-radius:3px;background:var(--acc,#6fb3ff)}
   #npctl{display:none;gap:12px;margin-top:10px}
   #np.ctl #npctl{display:flex}
   /* no song info (access off, or nothing playing): show just the buttons, and only while the controls are showing */
@@ -58,6 +64,7 @@
   <img id="npart" alt="">
   <div id="nptxt">
     <div id="npt"></div><div id="npa"></div><div id="npapp"></div>
+    <div id="npp"><span id="npe">0:00</span><div id="npbar"><div id="npfill"></div></div><span id="npd">0:00</span></div>
     <div id="npctl">
       <button id="prev" class="alt" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
       <button id="pp" class="alt" aria-label="Play or pause"></button>
@@ -182,7 +189,7 @@ async function toggleSource(){
   save();toast(mode==='native'?'Source: direct audio':'Source: microphone');
 }
 $('go').onclick=startAuto;
-$('demo').onclick=()=>{mode='demo';begin();np={title:'Demo Track',artist:'Spectr-Acular',album:'',app:'Demo',playing:true,art:''};npRender()};
+$('demo').onclick=()=>{mode='demo';begin();np={title:'Demo Track',artist:'Spectr-Acular',album:'',app:'Demo',playing:true,art:'',pos:62000,dur:213000,speed:1,t0:performance.now()};npRender()};
 
 // ---------- spectrum ----------
 function demoSpectrum(n){
@@ -427,12 +434,24 @@ function drawParticles(n,dt,now){
 
 // ---------- now playing (song info + play / pause / next / previous from whatever app is playing) ----------
 const ICON_PLAY='<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',ICON_PAUSE='<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
-let np={title:'',artist:'',album:'',app:'',playing:false,art:''};
+let np={title:'',artist:'',album:'',app:'',playing:false,art:'',pos:-1,dur:0,speed:0,t0:0}; // pos / dur in ms, speed 1 while playing, t0 = when pos was measured
+const pad2=n=>String(n).padStart(2,'0');
+function fmtT(ms){const s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?h+':'+pad2(m)+':'+pad2(s%60):m+':'+pad2(s%60)}
+function npTick(){ // runs twice a second: moves the bar between the updates the phone sends
+  if(!(np.dur>0&&np.pos>=0))return;
+  const cur=Math.min(np.dur,np.pos+(performance.now()-np.t0)*np.speed);
+  $('npe').textContent=fmtT(cur);$('npd').textContent=fmtT(np.dur);
+  $('npfill').style.width=(100*cur/np.dur).toFixed(1)+'%';
+}
+setInterval(()=>{if(!document.hidden&&$('np').classList.contains('hasprog'))npTick()},500);
+function setAccent(){const t=themes[S.theme];document.documentElement.style.setProperty('--acc',`hsl(${t.a+(t.b-t.a)*0.35},90%,62%)`)}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const natMedia=(m,o)=>window.Capacitor.nativePromise('SpectMedia',m,o||{});
 function npRender(){
   const has=!!(np.title||np.artist);
   $('np').classList.toggle('bare',!has);
+  $('np').classList.toggle('hasprog',has&&np.dur>0&&np.pos>=0);
+  npTick();
   $('np').style.display=(!has&&!window.Capacitor)?'none':''; // the bare buttons only make sense inside the app
   $('np').classList.toggle('paused',!np.playing);
   $('npt').textContent=np.title;
@@ -445,7 +464,7 @@ function npRender(){
 // the "Album" theme: pick the dominant colour of the cover art
 function artTheme(){
   const A=themes[themes.length-1];
-  if(!np.art){A.a=200;A.b=260;return}
+  if(!np.art){A.a=200;A.b=260;setAccent();return}
   const im=new Image();
   im.onload=()=>{
     try{
@@ -457,14 +476,17 @@ function artTheme(){
         let h=mx===mn?0:mx===r?((g-b)/(mx-mn))%6:mx===g?(b-r)/(mx-mn)+2:(r-g)/(mx-mn)+4;h*=60*Math.PI/180;
         sx+=Math.cos(h)*w;sy+=Math.sin(h)*w;tw+=w;
       }
-      if(tw>1){const h=(Math.atan2(sy,sx)*180/Math.PI+360)%360;A.a=h-30;A.b=h+50}
+      if(tw>1){const h=(Math.atan2(sy,sx)*180/Math.PI+360)%360;A.a=h-30;A.b=h+50;setAccent()}
     }catch(_){}
   };
   im.src='data:image/jpeg;base64,'+np.art;
 }
 function npApply(e){
-  if(e.active===false){np.title=np.artist=np.album=np.app='';np.playing=false;np.art='';artTheme()}
-  else{np.title=e.title||'';np.artist=e.artist||'';np.album=e.album||'';np.app=e.app||'';np.playing=!!e.playing}
+  if(e.active===false){np.title=np.artist=np.album=np.app='';np.playing=false;np.art='';np.pos=-1;np.dur=0;np.speed=0;artTheme()}
+  else{
+    np.title=e.title||'';np.artist=e.artist||'';np.album=e.album||'';np.app=e.app||'';np.playing=!!e.playing;
+    np.pos=typeof e.pos==='number'?e.pos:-1;np.dur=e.dur||0;np.speed=e.speed||0;np.t0=performance.now();
+  }
   if(typeof e.art==='string'){np.art=e.art;artTheme()}
   npRender();
 }
@@ -481,7 +503,10 @@ async function npInit(){
 }
 let npVia=''; // how the last button press was sent: "session" (the app's own controls) or "key" (media key)
 function npControl(a){
-  if(a==='toggle'){np.playing=!np.playing;npRender()}
+  if(a==='toggle'){
+    if(np.pos>=0){np.pos=np.pos+(performance.now()-np.t0)*np.speed;np.t0=performance.now()} // freeze or resume the bar right away
+    np.playing=!np.playing;np.speed=np.playing?1:0;npRender();
+  }
   if(window.Capacitor&&window.Capacitor.nativePromise)natMedia('control',{action:a}).then(r=>{npVia=(r&&r.via)||''}).catch(()=>{});
 }
 $('prev').onclick=()=>npControl('prev');
@@ -492,6 +517,7 @@ $('npen').onclick=async()=>{
   toast(ok?'Switch on '+document.title+'. If it is greyed out: App info > menu > Allow restricted settings'
           :'No notification-access screen on this radio. The play, next and previous buttons still work.',8000);
 };
+setAccent();
 npRender();
 npInit();
 
@@ -524,7 +550,7 @@ $('gain').oninput=e=>{S.gain=+e.target.value;S.auto=false;gEff=S.gain;syncUI();s
 $('auto').onclick=()=>{S.auto=!S.auto;syncUI();save();toast('Auto gain '+(S.auto?'on':'off'))};
 $('bars').oninput=e=>{S.bars=+e.target.value;vals=[];peaks=[];save()};
 function changeStyle(d){S.style=(S.style+d+styles.length)%styles.length;rings=[];parts=[];wfc=null;ctx.clearRect(0,0,W,H);syncUI();save();toast('Style: '+styles[S.style])}
-function changeTheme(d){S.theme=(S.theme+d+themes.length)%themes.length;syncUI();save();toast('Theme: '+themes[S.theme].n)}
+function changeTheme(d){S.theme=(S.theme+d+themes.length)%themes.length;setAccent();syncUI();save();toast('Theme: '+themes[S.theme].n)}
 $('style').onclick=()=>changeStyle(1);
 $('theme').onclick=()=>changeTheme(1);
 $('src').onclick=toggleSource;
