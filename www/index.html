@@ -35,6 +35,7 @@
   #nptxt{min-width:0;display:flex;flex-direction:column;gap:2px}
   #npt{font-size:30px;font-weight:650;line-height:1.15;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #npa{font-size:22px;color:#b9c3d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #npart,#npt{pointer-events:auto}
   #npapp{font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:#6fb3ff}
   /* song progress: elapsed time, a thin bar in the theme colour, total time. Read-only, hidden when the length is unknown (live streams) */
   #npp{display:none;align-items:center;gap:10px;margin-top:8px;min-width:300px;font-size:15px;color:#9aa6c0;font-variant-numeric:tabular-nums}
@@ -290,14 +291,15 @@ function draw(){
   ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
 
   switch(S.style){
-    case 2:return drawRadial(n);
-    case 3:return drawWave(n);
-    case 4:return drawTunnel(n,dt,now,topI);
-    case 5:return drawGauge(n);
-    case 6:return drawWaterfall(n,dt);
-    case 7:return drawParticles(n,dt,now);
-    default:return drawBars(n,S.style===1);
+    case 2:drawRadial(n);break;
+    case 3:drawWave(n);break;
+    case 4:drawTunnel(n,dt,now,topI);break;
+    case 5:drawGauge(n);break;
+    case 6:drawWaterfall(n,dt);break;
+    case 7:drawParticles(n,dt,now);break;
+    default:drawBars(n,S.style===1);
   }
+  if(egg)drawFaces(n,dt,now);
 }
 function drawBars(n,mirror){
   const gap=W*0.004,bw=(W-gap*(n+1))/n,base=mirror?H*0.5:H*0.92,maxH=mirror?H*0.4:H*0.8;
@@ -541,6 +543,58 @@ function applyPerf(){
   resize();wfc=null;
 }
 applyPerf();
+
+// ---------- hidden extra ----------
+// Tap the cover picture (or the song title) 7 times in a row, each tap within about a second of the last, to
+// start or stop a crowd of bouncing pictures that jump on every kick. Never saved: it is off every time the app starts.
+let egg=false,faces=[],eggLast=0,eggTaps=0,eggT=0,faceOk=false;
+const faceImg=new Image();faceImg.onload=()=>{faceOk=true};faceImg.src='face.jpg'; // if the file is missing a yellow smiley is drawn instead
+function eggTap(){
+  const now=performance.now();
+  if(now-eggT>1100)eggTaps=0;
+  eggT=now;
+  if(++eggTaps>=7){eggTaps=0;egg=!egg;faces=[];if(egg)spawnFaces()}
+}
+['npart','npt'].forEach(id=>$(id).addEventListener('pointerup',eggTap));
+function spawnFaces(){
+  const base=Math.min(W,H),cnt=perfOn?4:7;
+  for(let i=0;i<cnt;i++){
+    const r=base*(0.07+Math.random()*0.07),a=Math.random()*Math.PI*2,sp=base*(0.12+Math.random()*0.12);
+    faces.push({x:r+Math.random()*Math.max(1,W-2*r),y:r+Math.random()*Math.max(1,H-2*r),vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r,ph:Math.random()*6.28,sp0:sp,pop:0});
+  }
+}
+function drawFaces(n,dt,now){
+  if(!faces.length)spawnFaces();
+  const kick=flash>0.6&&now-eggLast>140;
+  if(kick)eggLast=now;
+  const base=Math.min(W,H),lvl=Math.min(1,bass*1.4);
+  for(const f of faces){
+    if(kick){const a=Math.random()*Math.PI*2,boost=base*(0.5+bass*0.7);f.vx+=Math.cos(a)*boost;f.vy+=Math.sin(a)*boost;f.pop=1} // every kick throws each picture in a new direction
+    const sp=Math.hypot(f.vx,f.vy)||1,cruise=f.sp0*(1+lvl*1.2),ns=sp+(cruise-sp)*Math.min(1,dt*2.2); // then it settles back to a speed set by the loudness
+    f.vx*=ns/sp;f.vy*=ns/sp;
+    f.x+=f.vx*dt;f.y+=f.vy*dt;f.pop*=Math.pow(0.02,dt);
+    const R=f.r*(1+0.12*lvl+0.28*f.pop);
+    if(f.x<R){f.x=R;f.vx=Math.abs(f.vx)}else if(f.x>W-R){f.x=W-R;f.vx=-Math.abs(f.vx)}
+    if(f.y<R){f.y=R;f.vy=Math.abs(f.vy)}else if(f.y>H-R){f.y=H-R;f.vy=-Math.abs(f.vy)}
+    drawFace(f.x,f.y,R,Math.sin(now/600+f.ph)*0.25+f.pop*0.25*Math.sin(f.ph*3),hue(((f.ph/6.29)*n)|0,n));
+  }
+}
+function drawFace(x,y,R,rot,h){
+  ctx.save();ctx.translate(x,y);ctx.rotate(rot);
+  ctx.shadowColor=`hsl(${h},100%,60%)`;ctx.shadowBlur=18*dpr;
+  ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);ctx.fillStyle='#10131b';ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.save();ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);ctx.clip();
+  if(faceOk)ctx.drawImage(faceImg,-R,-R,2*R,2*R);
+  else{
+    ctx.fillStyle='#ffd23f';ctx.fillRect(-R,-R,2*R,2*R);ctx.fillStyle='#2b1055';
+    for(const sx of [-1,1]){ctx.beginPath();ctx.arc(sx*R*0.33,-R*0.2,R*0.1,0,Math.PI*2);ctx.fill()}
+    ctx.lineWidth=R*0.08;ctx.strokeStyle='#2b1055';ctx.beginPath();ctx.arc(0,R*0.05,R*0.5,0.15*Math.PI,0.85*Math.PI);ctx.stroke();
+  }
+  ctx.restore();
+  ctx.lineWidth=Math.max(3,R*0.06);ctx.strokeStyle=`hsl(${h},95%,62%)`;ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
 
 draw();
 if(window.Capacitor)startAuto(); // auto-start inside the Android app

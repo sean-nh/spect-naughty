@@ -4,7 +4,7 @@ An audio spectrum visualizer for a custom Android car radio (Android 13). It was
 
 - **App name:** Spectr-Acular (earlier names: Spect-Analyzery, and Spect-Naughty for v1.6)
 - **Package ID:** `com.hector.spectanalyzery` (v1.7 and newer). Earlier builds used `com.hector.spectrum` (up to v1.1) and `com.hector.spectnaughty` (v1.6). Because the ID is different, this app installs **next to** those instead of replacing them, and it can never clash with a copy signed with a different key. Versions 1.7 and newer update each other normally. (The code's internal package folder is still `com/hector/spectrum`; that name is separate from the app's ID.)
-- **Version:** 2.2 (versionCode 12)
+- **Version:** 2.3 (versionCode 13)
 - **Built:** 2026-11-24 (v1.1 built 2026-11-20)
 - **Target:** Android 13 car head unit, landscape. The app also runs on newer Android versions.
 
@@ -65,7 +65,7 @@ The top-left card shows the cover art, song title, artist, album and the app tha
 | Path | What it is |
 |---|---|
 | `index.html` | The whole app UI and logic. **Edit this one.** |
-| `www/index.html` | Copy of `index.html` that gets packaged. Do not edit directly. |
+| `www/` | What gets packaged: a copy of `index.html` (do not edit it directly) plus the images the page uses. |
 | `android/` | The Android project (Capacitor). |
 | `android/app/src/main/java/com/hector/spectrum/MainActivity.java` | Fullscreen, keep-screen-on, permission request, WebView mic handling. |
 | `android/app/src/main/java/com/hector/spectrum/VisualizerPlugin.java` | Native audio tap. |
