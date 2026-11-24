@@ -19,3 +19,6 @@ New folder/
 New folder.zip
 spec/
 spec.zip
+
+# smoke test output (screenshots, logs)
+tests/results/

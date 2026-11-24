@@ -103,6 +103,24 @@ public class NowPlayingPlugin extends Plugin {
         });
     }
 
+    /** What the followed media session is doing right now (asked directly, not inferred from events). */
+    @PluginMethod
+    public void state(PluginCall call) {
+        final PluginCall c = call;
+        h.post(() -> {
+            JSObject r = new JSObject();
+            MediaController mc = cur;
+            if (mc == null) {
+                r.put("active", false);
+            } else {
+                r.put("active", true);
+                r.put("playing", isPlaying(mc.getPlaybackState()));
+                r.put("title", text(mc.getMetadata(), MediaMetadata.METADATA_KEY_TITLE, MediaMetadata.METADATA_KEY_DISPLAY_TITLE));
+            }
+            c.resolve(r);
+        });
+    }
+
     @PluginMethod
     public void openSettings(PluginCall call) {
         boolean ok = false;

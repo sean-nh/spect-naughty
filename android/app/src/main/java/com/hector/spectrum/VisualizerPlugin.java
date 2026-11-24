@@ -2,10 +2,12 @@ package com.hector.spectrum;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.os.Build;
+import android.provider.Settings;
 import android.webkit.WebView;
 import android.media.audiofx.Visualizer;
 import android.util.Base64;
@@ -42,6 +44,68 @@ public class VisualizerPlugin extends Plugin {
         JSObject r = new JSObject();
         r.put("granted", hasAudioPermission());
         call.resolve(r);
+    }
+
+    // ---- self-test hook, used by tools/smoke_test.py -------------------------------------------------
+    // `adb shell am start ... --es selftest tone` asks the page to play a test tone and report what it heard.
+    // Only honoured while USB debugging is switched on, so an ordinary app cannot trigger it.
+    private static volatile String pendingSelfTest = null; // request that arrived in a new intent, waiting for the page to collect it
+    private static long lastGivenAt = 0;                   // the same request can arrive twice (launch intent + new-intent); give it out once
+
+    private boolean adbOn() {
+        try {
+            return Settings.Global.getInt(getContext().getContentResolver(), Settings.Global.ADB_ENABLED, 0) == 1;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * The page polls this (every 2 s while USB debugging is on, every 30 s otherwise). It returns {adb: bool} and, once,
+     * {selftest: "tone" | "tone+controls"} when the app was started or re-opened with `--es selftest ...`.
+     */
+    @PluginMethod
+    public void launchExtras(PluginCall call) {
+        JSObject r = new JSObject();
+        try {
+            boolean adb = adbOn();
+            r.put("adb", adb);
+            if (adb) {
+                String v = pendingSelfTest;
+                pendingSelfTest = null;
+                if (v == null) {
+                    Intent i = getActivity() == null ? null : getActivity().getIntent();
+                    v = i == null ? null : i.getStringExtra("selftest");
+                }
+                long now = System.currentTimeMillis();
+                if (v != null && now - lastGivenAt > 25000) {
+                    lastGivenAt = now;
+                    r.put("selftest", v);
+                    Log.i("SpectTest", "self-test request handed to the page: " + v);
+                }
+            }
+        } catch (Throwable t) {
+            Log.w("SpectTest", "launchExtras failed: " + t);
+        }
+        call.resolve(r);
+    }
+
+    /** The app was already running and got a new intent: remember a self-test request for the page to collect. */
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        try {
+            if (intent != null && adbOn()) {
+                String v = intent.getStringExtra("selftest");
+                if (v != null) pendingSelfTest = v;
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    /** The page writes its self-test result here so a script can read it from logcat (tag SpectTest). */
+    @PluginMethod
+    public void testReport(PluginCall call) {
+        Log.i("SpectTest", call.getString("json", "{}"));
+        call.resolve();
     }
 
     /** App, device and system facts for the Diagnostics screen. */

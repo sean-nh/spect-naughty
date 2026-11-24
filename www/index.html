@@ -102,7 +102,7 @@
   <button id="npen" class="alt" style="display:none">Enable Now Playing</button>
   <button id="full" class="alt">Fullscreen</button>
 </div>
-<div id="diag"><pre id="diagtxt"></pre><div id="diagbtns"><button id="dcopy">Copy report</button><button id="dclose" class="alt">Close</button></div></div>
+<div id="diag"><pre id="diagtxt"></pre><div id="diagbtns"><button id="dcopy">Copy report</button><button id="dtone" class="alt">Test tone (4 s)</button><button id="dclose" class="alt">Close</button></div></div>
 <script>
 (()=>{
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
@@ -164,6 +164,7 @@ let audioCtx,analyser,freq,mode='none',t0=performance.now(),micStream=null;
 let vals=[],peaks=[],bass=0,bassAvg=0,flash=0;
 let srcRate=48000,srcFft=4096,natHandle=null,natStart=0,natSeen=false,natErr='';
 // audio watchdog state (see "audio watchdog" below)
+let toneMeasure=false,toneFrames=0,lastMx=0; // test tone bookkeeping
 let natStatusHandle=null,sigFrames=0,lastFrameT=0,silentSince=0,vizRestarts=0,fellBack=false,probing=false,recLast=0,wdBusy=false,wdRestarts=0,wdLast=0,okSince=0;
 let agRef=0.3,gEff=S.gain,idleT=0,idleMix=0,badgeOn=false,badgeN=0,lastNow=performance.now();
 let rings=[],lastSpawn=0;
@@ -214,6 +215,7 @@ async function startNative(quiet){ // quiet = a silent switch back to direct aud
     // real signal = a clearly non-zero bin above the lowest few (those carry DC offset and hum even in "silence");
     // a single stray frame at startup is not music either: it takes ~10 real ones
     let sig=false;for(let k=3;k<out.length;k++)if(out[k]>30){sig=true;break}
+    if(toneMeasure&&sig)toneFrames++;
     if(sig){if(++sigFrames>=10)natSeen=true;silentSince=0}
     else if(!silentSince)silentSince=lastFrameT;
   });
@@ -325,6 +327,7 @@ function drawFrame(){
   const t=now/1000,n=S.bars;
   const raw=mode==='demo'?demoSpectrum(n):rawSpectrum(n);
   let mx=0;for(let i=0;i<n;i++)if(raw[i]>mx)mx=raw[i];
+  lastMx=mx;
 
   // auto gain: fast attack, slow release, holds during silence so noise isn't amplified
   if(mode==='demo')gEff=1;
@@ -766,6 +769,81 @@ addEventListener('pointerdown',e=>{
   addRipple(e.clientX,e.clientY);
 });
 
+// ---------- test tone & self-test ----------
+// Plays a short tone through the app's own audio and checks whether the direct audio tap (or, if the microphone is in use,
+// the microphone) hears it. It answers "does direct audio work on this device?" without needing a music app.
+// Used by the "Test tone" button in Diagnostics and by tools/smoke_test.py.
+let toneResult='not run yet',toneBusy=false;
+async function playTone(ms){
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(!AC)return {ok:false,err:'no Web Audio'};
+  const ac=new AC();
+  try{
+    if(ac.state==='suspended')await ac.resume();
+    const t0=ac.currentTime,end=t0+ms/1000,master=ac.createGain();
+    master.gain.value=0.35;master.connect(ac.destination);
+    const o=ac.createOscillator();o.type='sine';
+    o.frequency.setValueAtTime(220,t0);o.frequency.exponentialRampToValueAtTime(1760,end);
+    const og=ac.createGain();og.gain.value=0.5;o.connect(og);og.connect(master);o.start(t0);o.stop(end);
+    for(let k=0;k<ms/500;k++){ // a soft kick drum twice a second, so there is bass and a beat to see
+      const k0=t0+k*0.5,ko=ac.createOscillator(),kg=ac.createGain();
+      ko.frequency.setValueAtTime(140,k0);ko.frequency.exponentialRampToValueAtTime(45,k0+0.18);
+      kg.gain.setValueAtTime(0.9,k0);kg.gain.exponentialRampToValueAtTime(0.001,k0+0.22);
+      ko.connect(kg);kg.connect(master);ko.start(k0);ko.stop(k0+0.25);
+    }
+    await sleep(ms+300);
+    return {ok:true};
+  }catch(e){return {ok:false,err:String((e&&e.message)||e)}}
+  finally{try{await ac.close()}catch(_){}}
+}
+async function toneTest(ms){
+  if(toneBusy)return null;
+  toneBusy=true;
+  const startMode=mode;toneFrames=0;toneMeasure=true;let peak=0;
+  const pk=setInterval(()=>{if(lastMx>peak)peak=lastMx},50);
+  const r=await playTone(ms||4000);
+  clearInterval(pk);toneMeasure=false;toneBusy=false;
+  const via=startMode==='native'?'direct audio':startMode==='mic'?'microphone':startMode;
+  const heard=startMode==='native'?toneFrames>=15:peak>0.12;
+  toneResult=(r.ok?(heard?'HEARD':'NOT HEARD'):'could not play ('+r.err+')')+' by '+via+' ('+(startMode==='native'?toneFrames+' frames with sound':'peak '+peak.toFixed(2))+') at '+new Date().toTimeString().slice(0,8);
+  logEvent('Test tone: '+toneResult);
+  return {ok:r.ok,heard:r.ok&&heard,via:startMode,frames:toneFrames,peak:+peak.toFixed(3),err:r.err||null};
+}
+// tools/smoke_test.py starts the app with `--es selftest tone` (or `tone+controls`); the page runs this and writes the
+// result to logcat (tag SpectTest) through the plugin. The hook only works while USB debugging is on.
+async function runSelfTest(kind){
+  kind=String(kind||'tone');logEvent('Self-test requested ('+kind+')');
+  for(let i=0;i<60&&!(mode==='native'||mode==='mic');i++)await sleep(500);
+  const res={type:'selftest',kind,ok:true};
+  let info={};try{info=await natVis('info')}catch(_){}
+  res.app=info.versionName||'?';res.sdk=info.sdk||0;res.model=((info.manufacturer||'')+' '+(info.model||'')).trim();res.webView=info.webView||'?';res.audioGranted=info.audioGranted;
+  await sleep(1500); // let the screen settle
+  res.tone=await toneTest(4000);
+  res.mode=mode;res.fellBack=fellBack;res.fps=Math.round(fps);res.perf=perfOn;res.drawErrors=drawErrors;res.jsErrors=jsErrors;res.tapRebuilt=vizRestarts;
+  res.np={enabled:npEnabledState,title:np.title,artist:np.artist,app:np.app,playing:np.playing,dur:np.dur};
+  if(kind.indexOf('controls')>=0&&npEnabledState){ // pause and resume the playing app, asking the media session what really happened
+    try{
+      const st=async()=>{const x=await natMedia('state');return x&&x.playing};
+      const before=await st();npControl('toggle');await sleep(2500);
+      const after=await st();npControl('toggle');await sleep(2500);
+      const back=await st();
+      res.controls={before,after,back,via:npVia};
+    }catch(e){res.controls={error:String((e&&e.message)||e)}}
+  }
+  try{await natVis('testReport',{json:JSON.stringify(res)})}catch(_){}
+  return res;
+}
+async function initSelfTest(){
+  for(let i=0;i<50&&!(window.Capacitor&&window.Capacitor.nativePromise);i++)await sleep(100);
+  if(!window.Capacitor||!window.Capacitor.nativePromise)return;
+  for(;;){ // ask the app whether a script (tools/smoke_test.py) has requested a self-test; slow down when USB debugging is off
+    let x=null;try{x=await natVis('launchExtras')}catch(_){}
+    if(x&&x.selftest)runSelfTest(x.selftest);
+    await sleep(x&&x.adb===false?30000:2000);
+  }
+}
+initSelfTest();
+
 // ---------- diagnostics ----------
 function compatChecks(){
   const sup=(p,v)=>{try{return !!(window.CSS&&CSS.supports&&CSS.supports(p,v))}catch(_){return false}};
@@ -791,6 +869,7 @@ async function buildReport(){
   L.push('Audio permission: '+(info.audioGranted===undefined?'?':info.audioGranted?'granted':'NOT granted'));
   L.push('Frames: last '+(lastFrameT?(Math.round((performance.now()-lastFrameT)/100)/10)+' s ago':'none yet')+', heard sound: '+(natSeen?'yes':'no')+', tap rebuilt: '+vizRestarts+' time(s), watchdog restarts: '+wdRestarts);
   L.push('Frame rate: '+Math.round(fps)+' fps'+(perfOn?' (Performance: Light)':''));
+  L.push('Test tone: '+toneResult);
   L.push('');
   L.push('Now playing: notification access '+(npEnabledState===null?'unknown':npEnabledState?'ON':'OFF')+(np.title?', "'+np.title+'" by '+(np.artist||'?')+' in '+(np.app||'?')+(np.playing?' (playing)':' (paused)'):', nothing reported')+(npVia?', last button used: '+npVia:''));
   L.push('');
@@ -810,6 +889,12 @@ async function openDiag(){
 }
 $('dg').onclick=openDiag;
 $('dclose').onclick=()=>$('diag').classList.remove('show');
+$('dtone').onclick=async()=>{
+  $('dtone').disabled=true;toast('Playing a 4 second test tone...',4500);
+  try{await toneTest(4000)}catch(e){toneResult='error: '+(e&&e.message||e)}
+  $('dtone').disabled=false;
+  try{$('diagtxt').textContent=await buildReport()}catch(_){}
+};
 $('dcopy').onclick=async()=>{
   const t=$('diagtxt').textContent;let ok=false;
   try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(t);ok=true}}catch(_){}
