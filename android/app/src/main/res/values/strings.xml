@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Spect-Naughty</string>
-    <string name="title_activity_main">Spect-Naughty</string>
-    <string name="package_name">com.hector.spectnaughty</string>
-    <string name="custom_url_scheme">com.hector.spectnaughty</string>
+    <string name="app_name">Spect-Analyzery</string>
+    <string name="title_activity_main">Spect-Analyzery</string>
+    <string name="package_name">com.hector.spectanalyzery</string>
+    <string name="custom_url_scheme">com.hector.spectanalyzery</string>
 </resources>

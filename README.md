@@ -1,21 +1,21 @@
-# Spect-Naughty
+# Spect-Analyzery
 
 An audio spectrum visualizer for a custom Android car radio (Android 13). It was originally a single web page (`index.html`) and is now packaged as an Android app with Capacitor.
 
-- **App name:** Spect-Naughty (called Spect-Analyzery before v1.5)
-- **Package ID:** `com.hector.spectnaughty`. Versions up to 1.5 used `com.hector.spectrum`. Because the ID is new, this app installs **next to** any older Spect-Analyzery or modified copy instead of replacing it, and it can never clash with a copy signed with a different key. It starts as a new app: it asks for audio permission again and does not inherit the old app's settings. (The code's internal package folder is still `com/hector/spectrum`; that name is separate from the app's ID.)
-- **Version:** 1.6 (versionCode 7)
-- **Built:** 2026-11-24 (v1.1 built 2026-11-20, v1.2 added the news ticker)
+- **App name:** Spect-Analyzery
+- **Package ID:** `com.hector.spectanalyzery`. Earlier builds used `com.hector.spectrum` (up to v1.1) and `com.hector.spectnaughty` (v1.6, see the v1.6 release). Because the ID is different, this app installs **next to** those instead of replacing them, and it can never clash with a copy signed with a different key. It starts as a new app: it asks for audio permission again and does not inherit their settings. (The code's internal package folder is still `com/hector/spectrum`; that name is separate from the app's ID.)
+- **Version:** 1.7 (versionCode 8)
+- **Built:** 2026-11-24 (v1.1 built 2026-11-20)
 - **Target:** Android 13 car head unit, landscape. The app also runs on newer Android versions.
 
 ## Install
 
-The file to install is **`Spect-Naughty.apk`** (in this folder). It is a signed release build.
+The file to install is **`Spect-Analyzery.apk`** (in this folder). It is a signed release build.
 
-1. You do not need to uninstall an older Spect-Analyzery. Spect-Naughty has its own app ID and installs beside it. (Uninstall the old one later if you don't want two icons.)
+1. You do not need to uninstall an older copy. This app has its own app ID and installs beside older ones. (Uninstall the old one later if you don't want two icons.)
 2. Copy the APK to the radio (USB drive or `adb`) and open it.
 3. Allow "Install unknown apps" for the app you opened it with (Settings, then Apps, then Special app access, then Install unknown apps).
-4. Or use `adb install Spect-Naughty.apk` (needs USB debugging on the radio).
+4. Or use `adb install Spect-Analyzery.apk` (needs USB debugging on the radio).
 5. On first launch, tap **While using the app** on the audio permission prompt.
 
 The app asks to "record audio". That is Android's wording. In normal use the app does not use the microphone (see "How it works").
@@ -29,7 +29,6 @@ The app asks to "record audio". That is Android's wording. In normal use the app
 - **Style:** Bars, Mirror, Radial, Wave, Tunnel.
 - **Theme:** Aurora, Fire, Ocean, Neon, Ice.
 - **Source:** switch between direct audio and the microphone.
-- **News:** turn the RSS news panel on or off (see "News panel").
 - **Long-press the picture** (about 1 second, not on the controls) to toggle the debug badge in the top-left corner.
 - **Settings are remembered** between launches (gain, bars, style, theme, auto-gain, source).
 - **No music playing:** the screen shows "WAITING FOR MUSIC..." with gentle motion, and dims after about 45 seconds.
@@ -42,23 +41,6 @@ The app asks to "record audio". That is Android's wording. In normal use the app
 
 The Visualizer API needs the `RECORD_AUDIO` permission even though it does not record. Some head units send audio through a separate chip or DSP, so Android never sees it. In that case the Visualizer gives silence and the app falls back to the microphone.
 
-## News panel (added in v1.2, moved to the right side in v1.4)
-
-A "LATEST NEWS" reading pane runs down the right side of the screen, a bit like the Outlook message list. Each entry shows the source, the headline (up to 3 lines) and its age (`5m`, `3h`, `2d`). Newest entries are first. The spectrum uses the rest of the screen (about 70%, and the pane is 300 to 520 px wide). If the list is longer than the screen, it scrolls slowly in a loop (`SIDE_PX_PER_S` in `index.html`). Version 1.2 and 1.3 showed a one-line ticker along the bottom instead.
-
-- **Feeds** (set in the `FEEDS` list near the "RSS news ticker" comment in `index.html`):
-  - ErosBlog: `https://www.erosblog.com/feed/`
-  - Pornhub: `https://www.pornhub.com/video/rss`
-  - Version 1.2 used Sugar Babes, Porn Valley Media and Adult Industry News (`https://adultindustry.news/rss.xml`; that site's plain `/feed` URL is not RSS).
-  - A `BLOCK` pattern in the same file hides any headline containing "teen".
-- To change the feeds, edit that list, then follow "Rebuild".
-- **Refresh:** on launch and every 15 minutes. Up to 12 headlines per feed, shown round-robin so every source appears.
-- **Offline:** the last headlines are kept (in local storage) and shown until a refresh succeeds. If there is no internet and nothing is saved, the pane stays hidden and the spectrum uses the whole screen.
-- **Fetching:** uses Capacitor's native HTTP (`CapacitorHttp`), because the WebView would block these sites with CORS. The app has the `INTERNET` permission.
-- **Display only:** headlines cannot be tapped, so nothing opens while driving. The pane is plain text and shows no images.
-- **On/off:** the News button in the controls, remembered between launches. With News off, the spectrum uses the full width.
-- The headlines come from adult sites and are very explicit. Turn News off, or change the feeds, if that is a problem on the radio screen.
-
 ## Project layout
 
 | Path | What it is |
@@ -69,7 +51,7 @@ A "LATEST NEWS" reading pane runs down the right side of the screen, a bit like 
 | `android/app/src/main/java/com/hector/spectrum/MainActivity.java` | Fullscreen, keep-screen-on, permission request, WebView mic handling. |
 | `android/app/src/main/java/com/hector/spectrum/VisualizerPlugin.java` | Native audio tap. |
 | `android/app/src/main/res/` | Icon (a winking devil face with equalizer bars on a pink-purple gradient, plus a single-colour version for themed icons) and app name. |
-| `Spect-Naughty.apk` | The finished release APK. |
+| `Spect-Analyzery.apk` | The finished release APK. |
 
 ## Rebuild
 
@@ -87,7 +69,7 @@ $env:JAVA_HOME="C:\path\to\jdk21"
 # output: android\app\build\outputs\apk\release\app-release.apk
 
 # 3. copy it next to index.html
-copy app\build\outputs\apk\release\app-release.apk ..\Spect-Naughty.apk
+copy app\build\outputs\apk\release\app-release.apk ..\Spect-Analyzery.apk
 ```
 
 ### Build notes
@@ -108,7 +90,6 @@ Tested on an Android 13 (API 33) emulator, a tablet-sized landscape screen:
 - Settings remembered after relaunch: **OK.**
 - No audio: shows the idle screen, then falls back to the microphone after 6 seconds: **OK.**
 - Release APK signature check (`apksigner verify`): **OK** (v1.1).
-- News panel (v1.4, fresh install on the API 33 emulator): both feeds loaded into the right-hand pane, the spectrum resized to the remaining width, and the list scrolled: **OK.** The News toggle in the controls (v1.2 and v1.3) was also checked. Toggling News off in v1.4 and the controls bar's width were not re-checked on screen.
 
 ## Not tested yet (check these on the real radio)
 
@@ -117,7 +98,6 @@ Tested on an Android 13 (API 33) emulator, a tablet-sized landscape screen:
 - Mirror and Radial styles, Ice, Ocean and Neon themes, and the screen dimming after about 45 seconds of silence. The code is in place but these were not viewed.
 - Behavior on the real touch screen: button sizes, auto-hide timing, long-press for debug info.
 - Whether the radio keeps the app running in the background or kills it.
-- Whether the radio has internet for the news panel (it needs a Wi-Fi or SIM connection), and whether the panel's width, text size and scroll speed are comfortable on the real screen. The speed is `SIDE_PX_PER_S` in `index.html`.
 - Auto-start on boot is **not implemented** (it was left out on purpose).
 
 ## Reporting a bug
@@ -142,7 +122,7 @@ Please include:
 |---|---|
 | Bars flat while music plays | Check the badge. If it says "direct audio" but the raw peak is about 0, the radio isn't exposing its audio. Tap **Source** to switch to the microphone. |
 | Bars move but are too small or too large | Turn Auto gain off and set Gain manually, or turn it back on. |
-| "Audio unavailable: NotAllowedError" | Audio permission was denied. Re-enable it in Android Settings, Apps, Spect-Naughty, Permissions, then reopen the app. |
-| App won't install | Allow "Install unknown apps". If it still fails, uninstall an earlier Spect-Naughty (v1.6 or newer) that was signed with a different key. |
+| "Audio unavailable: NotAllowedError" | Audio permission was denied. Re-enable it in Android Settings, Apps, Spect-Analyzery, Permissions, then reopen the app. |
+| App won't install | Allow "Install unknown apps". If it still fails, uninstall an earlier Spect-Analyzery 1.7 or newer that was signed with a different key. |
 | Controls won't show | Tap the picture, not the edge of the screen. |
 | Start screen shows instead of the visualizer | Tap **Start listening**, or **Demo** to check the display. |
