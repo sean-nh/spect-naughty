@@ -1,0 +1,21 @@
+# dependencies and build output
+node_modules/
+android/build/
+android/app/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/capacitor-cordova-android-plugins/build/
+
+# secrets: never commit signing keys or passwords
+*.jks
+*.keystore
+*.properties
+!android/gradle/wrapper/gradle-wrapper.properties
+!android/gradle.properties
+
+# unrelated files in this folder
+New folder/
+New folder.zip
+spec/
+spec.zip

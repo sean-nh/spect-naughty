@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spect-Naughty</title>
+<style>
+  html,body{margin:0;height:100%;background:#05060a;color:#cfd6e4;font-family:system-ui,Segoe UI,Roboto,sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;transition:opacity .8s}
+  #start{position:fixed;inset:0;display:flex;flex-direction:column;gap:18px;align-items:center;justify-content:center;background:rgba(5,6,10,.92);z-index:5;text-align:center;padding:24px}
+  #start h1{margin:0;font-size:clamp(28px,5vw,56px);letter-spacing:.04em}
+  #start p{margin:0;max-width:640px;opacity:.7;font-size:clamp(14px,2vw,20px);line-height:1.4}
+  button{font:inherit;color:#fff;background:#1f6feb;border:0;border-radius:16px;padding:18px 34px;font-size:clamp(18px,3vw,28px);cursor:pointer;min-height:64px}
+  button.alt{background:#2a2f3d}
+  button.alt.on{background:#1f6feb}
+  #bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:16px 20px;align-items:center;justify-content:center;flex-wrap:wrap;padding:18px 18px calc(18px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.8) 35%);z-index:4;transition:opacity .4s}
+  #bar.hide{opacity:0;pointer-events:none}
+  #bar label{display:flex;align-items:center;gap:12px;font-size:24px}
+  #bar button{padding:12px 24px;font-size:24px;min-height:64px;min-width:96px}
+  #gainwrap{transition:opacity .2s}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:200px;height:56px;background:transparent;margin:0}
+  input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;background:#3a4156}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:44px;height:44px;border-radius:50%;background:#4f8cff;margin-top:-16px;border:3px solid #fff}
+  #msg{position:fixed;top:12px;left:0;right:0;text-align:center;font-size:22px;color:#ffb86b;z-index:6;pointer-events:none}
+  #badge{position:fixed;left:10px;top:8px;font-size:14px;opacity:.6;z-index:6;pointer-events:none}
+  #idle{position:fixed;left:0;right:0;top:42%;text-align:center;font-size:clamp(20px,3vw,34px);letter-spacing:.12em;opacity:0;z-index:3;pointer-events:none;transition:opacity .6s;color:#9aa6c0}
+  /* news reading pane on the right; the spectrum uses the rest of the screen */
+  body{--pw:0px}
+  body.news{--pw:clamp(300px,30vw,520px)}
+  #bar,#msg,#idle{right:var(--pw)}
+  #side{position:fixed;top:0;right:0;bottom:0;width:var(--pw);display:none;flex-direction:column;background:#0b0e16;border-left:1px solid #1c2233;z-index:3;overflow:hidden;pointer-events:none}
+  body.news #side{display:flex}
+  #side h2{margin:0;padding:16px 20px 12px;font-size:15px;letter-spacing:.14em;color:#7f8aa6;font-weight:600;border-bottom:1px solid #1c2233;flex:none}
+  #sideview{flex:1;overflow:hidden;position:relative}
+  #list{will-change:transform}
+  #list.scroll{animation:vs linear infinite}
+  .it{padding:14px 20px;border-bottom:1px solid #161b29}
+  .it .m{display:flex;justify-content:space-between;gap:10px;font-size:14px;color:#6fb3ff;font-weight:600;letter-spacing:.04em;margin-bottom:4px}
+  .it .m span:last-child{color:#6b7592;font-weight:400}
+  .it .t{font-size:21px;line-height:1.3;color:#dfe5f2;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  @keyframes vs{from{transform:translateY(0)}to{transform:translateY(-50%)}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="msg"></div>
+<div id="badge"></div>
+<div id="idle">WAITING FOR MUSIC&hellip;</div>
+<div id="side"><h2>LATEST NEWS</h2><div id="sideview"><div id="list"></div></div></div>
+<div id="start">
+  <h1>SPECT-NAUGHTY</h1>
+  <p>Plays along with whatever your radio is playing. Tap Start listening and allow audio access when asked.</p>
+  <button id="go">Start listening</button>
+  <button id="demo" class="alt">Demo</button>
+</div>
+<div id="bar" class="hide">
+  <label id="gainwrap">Gain <input id="gain" type="range" min="0.5" max="6" step="0.1" value="2.5"></label>
+  <button id="auto" class="alt">Auto gain</button>
+  <label>Bars <input id="bars" type="range" min="16" max="96" step="8" value="48"></label>
+  <button id="style" class="alt">Style</button>
+  <button id="theme" class="alt">Theme</button>
+  <button id="src" class="alt">Source</button>
+  <button id="news" class="alt">News</button>
+  <button id="full" class="alt">Fullscreen</button>
+</div>
+<script>
+(()=>{
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=0,H=0,dpr=1;
+function resize(){
+  dpr=Math.min(window.devicePixelRatio||1,2);
+  const pw=document.body.classList.contains('news')?$('side').offsetWidth:0; // spectrum area = screen minus the news pane
+  const cw=Math.max(200,innerWidth-pw);
+  cv.style.width=cw+'px';W=cv.width=cw*dpr;H=cv.height=innerHeight*dpr;
+}
+addEventListener('resize',resize);resize();
+
+// ---------- settings (remembered between launches) ----------
+const styles=['Bars','Mirror','Radial','Wave','Tunnel'];
+const themes=[{n:'Aurora',a:200,b:360},{n:'Fire',a:0,b:55},{n:'Ocean',a:165,b:235},{n:'Neon',a:290,b:120},{n:'Ice',a:185,b:220}];
+const S={gain:2.5,bars:48,style:0,theme:0,auto:true,src:'auto',news:true};
+try{Object.assign(S,JSON.parse(localStorage.getItem('spect.settings')||'{}'))}catch(_){}
+S.style=Math.max(0,Math.min(styles.length-1,S.style|0));
+S.theme=Math.max(0,Math.min(themes.length-1,S.theme|0));
+S.bars=Math.max(16,Math.min(96,S.bars|0))||48;
+function save(){try{localStorage.setItem('spect.settings',JSON.stringify(S))}catch(_){}}
+let toastT;function toast(t){$('msg').textContent=t;clearTimeout(toastT);toastT=setTimeout(()=>$('msg').textContent='',2200)}
+function syncUI(){
+  $('gain').value=S.gain;$('bars').value=S.bars;
+  $('auto').textContent='Auto gain: '+(S.auto?'On':'Off');$('auto').classList.toggle('on',S.auto);
+  $('gainwrap').style.opacity=S.auto?.4:1;
+  $('style').textContent='Style: '+styles[S.style];$('theme').textContent='Theme: '+themes[S.theme].n;
+  $('news').textContent='News: '+(S.news?'On':'Off');$('news').classList.toggle('on',S.news);
+}
+syncUI();if(window.Capacitor)$('full').style.display='none';
+
+// ---------- state ----------
+let audioCtx,analyser,freq,mode='none',t0=performance.now();
+let vals=[],peaks=[],bass=0,bassAvg=0,flash=0;
+let srcRate=48000,srcFft=4096,natHandle=null,natStart=0,natSeen=false,natErr='';
+let agRef=0.3,gEff=S.gain,idleT=0,idleMix=0,badgeOn=false,badgeN=0,lastNow=performance.now();
+let rings=[],lastSpawn=0;
+const FFT=4096;
+
+// ---------- audio sources ----------
+async function startMicOnly(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const src=audioCtx.createMediaStreamSource(stream);
+    analyser=audioCtx.createAnalyser();analyser.fftSize=FFT;analyser.smoothingTimeConstant=0.6;
+    src.connect(analyser);freq=new Uint8Array(analyser.frequencyBinCount);srcRate=audioCtx.sampleRate;srcFft=FFT;
+    mode='mic';begin();
+  }catch(e){
+    $('msg').textContent='Audio unavailable: '+(e.name||e.message)+'. '+(natErr?'Direct audio: '+natErr+'. ':'')+'Try Demo, or check the audio permission.';
+    $('start').style.display='flex';
+  }
+}
+function begin(){
+  $('start').style.display='none';$('bar').classList.remove('hide');hideLater();
+  try{navigator.wakeLock&&navigator.wakeLock.request('screen')}catch(_){}
+}
+// Direct tap of Android's audio output (Visualizer API) via native plugin, using Capacitor's built-in bridge calls
+const nat=(m,o)=>window.Capacitor.nativePromise('SpectVisualizer',m,o||{});
+async function startNative(){
+  for(let i=0;i<50&&!(window.Capacitor&&window.Capacitor.nativePromise&&window.Capacitor.addListener);i++)await new Promise(r=>setTimeout(r,100)); // bridge can load a moment late
+  const C=window.Capacitor;
+  if(!C||!C.nativePromise||!C.addListener)throw new Error('not in app');
+  if(natHandle){try{await natHandle.remove()}catch(_){}natHandle=null}
+  natHandle=C.addListener('SpectVisualizer','fft',e=>{
+    const bin=atob(e.fft),size=bin.length,half=size>>1,out=new Uint8Array(half);
+    const sb=i=>{const x=bin.charCodeAt(i);return x>127?x-256:x};
+    for(let k=0;k<half;k++){
+      const m=k===0?Math.abs(sb(0)):Math.hypot(sb(2*k),sb(2*k+1));
+      out[k]=Math.max(0,Math.min(255,(255*Math.log10(1+m)/2.26-25)*255/230));
+    }
+    freq=out;if(out.some(x=>x>8))natSeen=true;
+  });
+  for(let i=0;;i++){ // wait for the user to allow audio access (asked by the app at launch)
+    if((await nat('granted')).granted)break;
+    if(i===0)toast('Allow audio access to start');
+    if(i>120)throw new Error('audio permission not granted');
+    await new Promise(r=>setTimeout(r,500));
+  }
+  const r=await nat('start');
+  srcRate=r.sampleRate||48000;srcFft=r.captureSize||1024;
+  freq=new Uint8Array(srcFft>>1);natSeen=false;natStart=performance.now();
+  mode='native';begin();
+}
+async function stopNative(){try{await nat('stop')}catch(_){}}
+async function startAuto(){
+  if(S.src==='mic'||!window.Capacitor)return startMicOnly();
+  try{await startNative()}
+  catch(e){natErr=(e&&(e.message||e.errorMessage))||String(e);await startMicOnly()}
+}
+async function toggleSource(){
+  if(mode==='native'){
+    S.src='mic';await stopNative();
+    if(analyser)mode='mic';else await startMicOnly();
+  }else if(window.Capacitor){
+    S.src='auto';
+    try{await startNative()}catch(e){toast('Direct audio unavailable: '+(e.message||e))}
+  }
+  save();toast(mode==='native'?'Source: direct audio':'Source: microphone');
+}
+$('go').onclick=startAuto;
+$('demo').onclick=()=>{mode='demo';begin()};
+
+// ---------- spectrum ----------
+function demoSpectrum(n){
+  const t=(performance.now()-t0)/1000,beat=(t*2)%1,kick=Math.pow(1-beat,4);
+  const out=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const x=i/n;
+    let v=kick*Math.exp(-x*5)*1.0 + 0.35*Math.exp(-x*2)*(0.5+0.5*Math.sin(t*1.3+i*.4));
+    v+=0.25*(0.5+0.5*Math.sin(t*5+i*.7))*(1-x)*((Math.floor(t*4)%2)?1:.4);
+    v+=0.08*Math.random();out[i]=Math.max(0,Math.min(1,v));
+  }
+  return out;
+}
+// returns un-gained spectrum, 0..~1.5, log-spaced bars
+function rawSpectrum(n){
+  if(mode==='mic')analyser.getByteFrequencyData(freq);
+  const sr=srcRate,binHz=sr/srcFft,L=freq.length;
+  const lo=30,hi=Math.min(16000,sr/2),out=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const x=i/n,f1=lo*Math.pow(hi/lo,x),f2=lo*Math.pow(hi/lo,(i+1)/n);
+    let v;
+    if(f2-f1<binHz){ // bar narrower than one FFT bin: interpolate so the bass isn't blocky
+      const pos=Math.sqrt(f1*f2)/binHz,b=Math.floor(pos),fr=pos-b;
+      v=((freq[b]||0)*(1-fr)+(freq[Math.min(b+1,L-1)]||0)*fr)/255;
+    }else{
+      const b1=Math.floor(f1/binHz),b2=Math.max(b1+1,Math.ceil(f2/binHz));let s=0,c=0,m=0;
+      for(let b=b1;b<b2&&b<L;b++){s+=freq[b];c++;if(freq[b]>m)m=freq[b]}
+      v=(c?(s/c*0.4+m*0.6):0)/255;
+    }
+    v*=0.8+0.9*x;                          // gentle tilt so highs are visible
+    v*=1+0.9*Math.max(0,1-x/0.3);          // bass lift so the kick still hits
+    out[i]=Math.pow(Math.min(v,1.5),1.4);
+  }
+  return out;
+}
+
+const hue=(i,n)=>{const t=themes[S.theme];return t.a+(t.b-t.a)*(i/n)};
+
+// ---------- drawing ----------
+function draw(){
+  requestAnimationFrame(draw);
+  if(!(mode==='demo'||mode==='native'||analyser))return;
+  if(mode==='native'&&!natSeen&&performance.now()-natStart>6000){ // radio gives silence: use the mic
+    stopNative();toast('No audio from the radio output - listening via microphone');
+    if(analyser)mode='mic';else{mode='none';startMicOnly()}
+    return;
+  }
+  if(mode==='none')return;
+  const now=performance.now(),dt=Math.min(0.1,(now-lastNow)/1000);lastNow=now;
+  const t=now/1000,n=S.bars;
+  const raw=mode==='demo'?demoSpectrum(n):rawSpectrum(n);
+  let mx=0;for(let i=0;i<n;i++)if(raw[i]>mx)mx=raw[i];
+
+  // auto gain: fast attack, slow release, holds during silence so noise isn't amplified
+  if(mode==='demo')gEff=1;
+  else{
+    agRef=mx>agRef?agRef+(mx-agRef)*0.3:agRef+(mx-agRef)*0.004;
+    const tgt=S.auto?(mx>0.03?Math.min(6,Math.max(0.5,0.85/Math.max(agRef,0.04))):gEff):S.gain;
+    gEff+=(tgt-gEff)*0.05;
+  }
+  // idle: nothing playing -> gentle ambient motion, later dim the screen
+  const active=mode==='demo'||mx*gEff>0.06;
+  idleT=active?0:idleT+dt;
+  idleMix+=((idleT>2?1:0)-idleMix)*0.03;
+  const dim=idleT>45?Math.min(0.6,(idleT-45)/30*0.6):0;
+  cv.style.opacity=1-dim;$('idle').style.opacity=idleMix*0.55;
+
+  if(vals.length!==n){vals=new Array(n).fill(0);peaks=new Array(n).fill(0)}
+  let bsum=0,bc=Math.max(2,Math.round(n*0.1)),top=0,topI=0;
+  for(let i=0;i<n;i++){
+    const amb=(0.05+0.04*Math.sin(t*0.9+i*0.35)+0.03*Math.sin(t*0.5-i*0.2))*idleMix;
+    const tgt=Math.max(Math.min(1,raw[i]*gEff),amb);
+    vals[i]=tgt>vals[i]?vals[i]+(tgt-vals[i])*0.7:vals[i]+(tgt-vals[i])*0.18;
+    peaks[i]=Math.max(vals[i],peaks[i]-0.006);
+    if(i<bc)bsum+=vals[i];
+    if(vals[i]>top){top=vals[i];topI=i}
+  }
+  bass=bsum/bc;bassAvg=bassAvg*0.92+bass*0.08;
+  if(bass>bassAvg*1.25&&bass>0.25)flash=1;flash*=0.9;
+
+  if(badgeOn&&(badgeN=(badgeN+1)%20)===0)$('badge').textContent=(mode==='native'?'direct audio':mode==='mic'?'microphone':mode)+' | raw peak '+mx.toFixed(2)+' | gain '+gEff.toFixed(1)+(idleT>2?' | idle':'');
+
+  ctx.fillStyle='rgba(5,6,10,0.35)';ctx.fillRect(0,0,W,H);
+  const th=themes[S.theme],gh=th.a+(th.b-th.a)*0.3;
+  const gr=ctx.createRadialGradient(W/2,H*0.6,0,W/2,H*0.6,Math.max(W,H)*0.6);
+  gr.addColorStop(0,`hsla(${gh},90%,55%,${0.05+flash*0.25})`);gr.addColorStop(1,'transparent');
+  ctx.fillStyle=gr;ctx.fillRect(0,0,W,H);
+
+  switch(S.style){
+    case 2:return drawRadial(n);
+    case 3:return drawWave(n);
+    case 4:return drawTunnel(n,dt,now,topI);
+    default:return drawBars(n,S.style===1);
+  }
+}
+function drawBars(n,mirror){
+  const gap=W*0.004,bw=(W-gap*(n+1))/n,base=mirror?H*0.5:H*0.92,maxH=mirror?H*0.4:H*0.8;
+  for(let i=0;i<n;i++){
+    const x=gap+i*(bw+gap),h=Math.max(2*dpr,vals[i]*maxH),hh=hue(i,n);
+    const g=ctx.createLinearGradient(0,base-h,0,base);
+    g.addColorStop(0,`hsl(${hh},95%,65%)`);g.addColorStop(1,`hsl(${hh+30},90%,45%)`);
+    ctx.fillStyle=g;ctx.shadowColor=`hsl(${hh},100%,60%)`;ctx.shadowBlur=(8+flash*18)*dpr;
+    ctx.fillRect(x,base-h,bw,h);
+    if(mirror)ctx.fillRect(x,base,bw,h*0.9);
+    ctx.shadowBlur=0;ctx.fillStyle='#fff';
+    const ph=peaks[i]*maxH;ctx.fillRect(x,base-ph-4*dpr,bw,3*dpr);
+    if(mirror)ctx.fillRect(x,base+ph*0.9+dpr,bw,3*dpr);
+  }
+}
+function drawRadial(n){
+  const cx=W/2,cy=H/2,r0=Math.min(W,H)*(0.2+flash*0.03),rm=Math.min(W,H)*0.3;
+  ctx.lineWidth=Math.max(2,(Math.PI*2*r0/n)*0.6);ctx.lineCap='round';
+  for(let i=0;i<n;i++){
+    const a=(i/n)*Math.PI*2-Math.PI/2,l=vals[i]*rm+4*dpr;
+    ctx.strokeStyle=`hsl(${hue(i,n)},95%,62%)`;ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=(8+flash*18)*dpr;
+    ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*r0,cy+Math.sin(a)*r0);ctx.lineTo(cx+Math.cos(a)*(r0+l),cy+Math.sin(a)*(r0+l));ctx.stroke();
+  }
+  ctx.shadowBlur=0;
+}
+function drawWave(n){
+  const cy=H*0.5,amp=H*0.4;
+  const g=ctx.createLinearGradient(0,0,W,0);
+  for(let k=0;k<=6;k++)g.addColorStop(k/6,`hsl(${hue(k,6)},95%,62%)`);
+  ctx.lineWidth=(3+flash*3)*dpr;ctx.lineJoin='round';ctx.lineCap='round';
+  ctx.shadowColor=`hsl(${hue(n*0.4,n)},100%,60%)`;ctx.shadowBlur=(14+flash*20)*dpr;
+  for(const dir of [1,-1]){
+    const pt=i=>[i/(n-1)*W,cy-dir*(vals[i]*amp+2*dpr)];
+    ctx.beginPath();let p=pt(0);ctx.moveTo(p[0],p[1]);
+    for(let i=1;i<n;i++){const q=pt(i),mx=(p[0]+q[0])/2,my=(p[1]+q[1])/2;ctx.quadraticCurveTo(p[0],p[1],mx,my);p=q}
+    ctx.lineTo(p[0],p[1]);
+    ctx.strokeStyle=g;ctx.globalAlpha=dir===1?1:0.55;ctx.stroke();
+    ctx.lineTo(W,cy);ctx.lineTo(0,cy);ctx.closePath();ctx.fillStyle=g;ctx.globalAlpha=0.12;ctx.fill();
+  }
+  ctx.globalAlpha=1;ctx.shadowBlur=0;
+}
+function drawTunnel(n,dt,now,topI){
+  const cx=W/2,cy=H/2,R=Math.max(W,H)*0.75;
+  let mid=0,mc=0;for(let i=Math.floor(n*0.3);i<Math.floor(n*0.7);i++){mid+=vals[i];mc++}mid/=Math.max(1,mc);
+  if((flash>0.6&&now-lastSpawn>130)||now-lastSpawn>1400){rings.push({r:0.02,h:hue(topI,n)});lastSpawn=now}
+  if(rings.length>40)rings.shift();
+  ctx.lineCap='butt';
+  for(let k=rings.length-1;k>=0;k--){
+    const g=rings[k];
+    g.r+=(0.004+bass*0.02)*(1+g.r*4)*dt*60;
+    if(g.r>1){rings.splice(k,1);continue}
+    ctx.lineWidth=(2+(1-g.r)*16*(0.4+mid))*dpr;
+    ctx.strokeStyle=`hsla(${g.h},95%,60%,${(1-g.r)*0.9})`;
+    ctx.shadowColor=`hsl(${g.h},100%,60%)`;ctx.shadowBlur=10*dpr;
+    ctx.beginPath();ctx.arc(cx,cy,g.r*R,0,Math.PI*2);ctx.stroke();
+  }
+  const cr=Math.min(W,H)*(0.05+bass*0.09);
+  ctx.shadowColor=`hsl(${hue(topI,n)},100%,60%)`;ctx.shadowBlur=(20+flash*30)*dpr;
+  ctx.fillStyle=`hsl(${hue(topI,n)},95%,${55+flash*20}%)`;
+  ctx.beginPath();ctx.arc(cx,cy,cr,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+}
+// ---------- RSS news ticker ----------
+// To change the feeds, edit this list and rebuild the app.
+const FEEDS=[
+  {n:'ErosBlog',u:'https://www.erosblog.com/feed/'},
+  {n:'Pornhub',u:'https://www.pornhub.com/video/rss'}
+];
+const BLOCK=/teen/i; // headlines matching this are never shown
+const NEWS_EVERY=15*60*1000,PER_FEED=12,SIDE_PX_PER_S=22; // SIDE_PX_PER_S = how fast the list scrolls when it is longer than the screen
+let news=[];
+try{const c=JSON.parse(localStorage.getItem('spect.news')||'null');if(c&&Array.isArray(c.items))news=c.items.filter(n=>FEEDS.some(f=>f.n===n.s)&&!BLOCK.test(n.t))}catch(_){}
+const decode=s=>(new DOMParser().parseFromString(String(s||''),'text/html').documentElement.textContent||'').replace(/\s+/g,' ').trim();
+function withTimeout(p,ms){return Promise.race([p,new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),ms))])}
+async function fetchText(u){
+  for(let i=0;i<30&&window.Capacitor&&!window.Capacitor.nativePromise;i++)await new Promise(r=>setTimeout(r,100));
+  if(window.Capacitor&&window.Capacitor.nativePromise){
+    // native HTTP: not subject to the WebView's CORS rules
+    const r=await window.Capacitor.nativePromise('CapacitorHttp','request',{url:u,method:'GET',responseType:'text',headers:{Accept:'application/rss+xml, application/xml, text/xml, */*'}});
+    if(r.status>=400)throw new Error('http '+r.status);
+    return typeof r.data==='string'?r.data:String(r.data);
+  }
+  const r=await fetch(u);if(!r.ok)throw new Error('http '+r.status);return r.text();
+}
+function parseFeed(xml,name){
+  const doc=new DOMParser().parseFromString(xml,'text/xml');
+  return [...doc.querySelectorAll('item, entry')].slice(0,PER_FEED).map(it=>{
+    const t=it.querySelector('title'),dt=it.querySelector('pubDate, published, updated');
+    return t?{s:name,t:decode(t.textContent),d:dt?(Date.parse(dt.textContent)||0):0}:null;
+  }).filter(x=>x&&x.t&&!BLOCK.test(x.t));
+}
+function ago(ms){
+  if(!ms)return '';const m=Math.max(0,Math.round((Date.now()-ms)/60000));
+  return m<60?(m<1?'now':m+'m'):m<1440?Math.round(m/60)+'h':Math.round(m/1440)+'d';
+}
+async function refreshNews(){
+  const res=await Promise.all(FEEDS.map(f=>withTimeout(fetchText(f.u),15000).then(x=>parseFeed(x,f.n)).catch(()=>[])));
+  const out=[];
+  for(let i=0;i<PER_FEED;i++)res.forEach(r=>{if(r[i])out.push(r[i])}); // round-robin so each source shows up
+  if(out.some(x=>x.d))out.sort((a,b)=>b.d-a.d); // newest first when the feeds give dates
+  if(!out.length)return; // keep the old headlines when offline
+  news=out;
+  try{localStorage.setItem('spect.news',JSON.stringify({t:Date.now(),items:news}))}catch(_){}
+  renderNews(true);
+}
+let newsSig='',newsShown=false;
+function renderNews(force){
+  const show=S.news&&news.length>0;
+  if(show!==newsShown){newsShown=show;document.body.classList.toggle('news',show);resize();ctx.clearRect(0,0,W,H);rings=[]}
+  if(!show)return;
+  const sig=news.map(n=>n.t).join('|');
+  if(!force&&sig===newsSig)return;
+  newsSig=sig;
+  const list=$('list');list.textContent='';list.classList.remove('scroll');
+  const add=()=>news.forEach(n=>{
+    const it=document.createElement('div');it.className='it';
+    const m=document.createElement('div');m.className='m';
+    const a=document.createElement('span');a.textContent=n.s.toUpperCase();
+    const b=document.createElement('span');b.textContent=ago(n.d);
+    m.appendChild(a);m.appendChild(b);
+    const t=document.createElement('div');t.className='t';t.textContent=n.t;
+    it.appendChild(m);it.appendChild(t);list.appendChild(it);
+  });
+  add();
+  requestAnimationFrame(()=>{
+    const one=list.scrollHeight;
+    if(one>$('sideview').clientHeight){ // longer than the screen: repeat once and scroll slowly in a loop
+      add();list.style.animationDuration=Math.max(20,one/SIDE_PX_PER_S)+'s';list.classList.add('scroll');
+    }
+  });
+}
+renderNews();
+refreshNews();setInterval(refreshNews,NEWS_EVERY);
+
+draw();
+if(window.Capacitor)startAuto(); // auto-start inside the Android app
+
+// ---------- controls ----------
+$('gain').oninput=e=>{S.gain=+e.target.value;S.auto=false;gEff=S.gain;syncUI();save()};
+$('auto').onclick=()=>{S.auto=!S.auto;syncUI();save();toast('Auto gain '+(S.auto?'on':'off'))};
+$('bars').oninput=e=>{S.bars=+e.target.value;vals=[];peaks=[];save()};
+$('style').onclick=()=>{S.style=(S.style+1)%styles.length;rings=[];ctx.clearRect(0,0,W,H);syncUI();save()};
+$('theme').onclick=()=>{S.theme=(S.theme+1)%themes.length;syncUI();save()};
+$('src').onclick=toggleSource;
+$('news').onclick=()=>{S.news=!S.news;save();syncUI();renderNews();toast('News '+(S.news?'on':'off'))};
+$('full').onclick=()=>{const d=document.documentElement;document.fullscreenElement?document.exitFullscreen():(d.requestFullscreen&&d.requestFullscreen())};
+
+let hideT;function hideLater(){clearTimeout(hideT);$('bar').classList.remove('hide');hideT=setTimeout(()=>$('bar').classList.add('hide'),6000)}
+['pointerdown','pointermove','keydown'].forEach(ev=>addEventListener(ev,()=>{if($('start').style.display!=='flex')hideLater()}));
+// long-press on the picture (not on the controls) toggles the small debug badge
+let lpT;
+addEventListener('pointerdown',e=>{
+  if(e.target.closest&&e.target.closest('#bar,#start'))return;
+  clearTimeout(lpT);lpT=setTimeout(()=>{badgeOn=!badgeOn;$('badge').textContent='';toast('Debug info '+(badgeOn?'on':'off'))},900);
+});
+['pointerup','pointercancel','pointermove'].forEach(ev=>addEventListener(ev,()=>clearTimeout(lpT)));
+addEventListener('visibilitychange',()=>{if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume()});
+})();
+</script>
+</body>
+</html>
