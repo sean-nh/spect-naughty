@@ -4,7 +4,7 @@ An audio spectrum visualizer for a custom Android car radio (Android 13). It was
 
 - **App name:** Spectr-Acular (earlier names: Spect-Analyzery, and Spect-Naughty for v1.6)
 - **Package ID:** `com.hector.spectanalyzery` (v1.7 and newer). Earlier builds used `com.hector.spectrum` (up to v1.1) and `com.hector.spectnaughty` (v1.6). Because the ID is different, this app installs **next to** those instead of replacing them, and it can never clash with a copy signed with a different key. Versions 1.7 and newer update each other normally. (The code's internal package folder is still `com/hector/spectrum`; that name is separate from the app's ID.)
-- **Version:** 2.6 (versionCode 16)
+- **Version:** 2.7 (versionCode 17)
 - **Built:** 2026-11-24 (v1.1 built 2026-11-20)
 - **Target:** Android 13 car head unit, landscape. The app also runs on newer Android versions.
 
@@ -27,26 +27,30 @@ The app asks to "record audio". That is Android's wording. In normal use the app
 - **Gain:** manual level. Moving it turns Auto gain off.
 - **Auto gain:** adjusts the level automatically (on by default). It holds steady during silence.
 - **Bars:** number of bars (16 to 96).
-- **Style:** Bars, Mirror, Radial, Wave, Tunnel, Gauge (two analog VU needles for bass and treble), Waterfall (scrolling spectrogram) and Particles (sparks that rise with the sound, a burst on every kick).
+- **Style:** Bars, Mirror, Radial, Wave, Tunnel, Gauge (two analog VU needles for bass and treble), Waterfall (scrolling spectrogram) Particles (sparks that rise with the sound, a burst on every kick), Skyline (a city whose windows light up from the bottom with the music) and Scope (the real sound wave, about 12 milliseconds of it, like an oscilloscope).
 - **Theme:** Aurora, Fire, Ocean, Neon, Ice, and Album (colours taken from the cover art of the song playing).
 - **Swipe on the picture** to change things without the buttons: left or right changes the style, up or down changes the theme.
 - **Now Playing buttons:** while the controls are showing, previous, play or pause, and next appear at the top left (see "Now Playing").
 - **Diagnostics:** opens a screen with everything useful for a bug report: app and Android version, the radio model, the WebView (browser engine) version, audio source and permission, whether the tap had to be rebuilt, notification access, your settings, a compatibility check of the WebView, and the last 30 events (start-ups, fallbacks, errors). **Copy report** puts it on the clipboard so you can paste it into a message; if the radio will not copy, photograph the screen. The events survive restarts. **Test tone (4 s)** plays a short tone through the app and reports whether direct audio heard it, which is a quick way to check that direct audio works on this radio without needing any music (the result is added to the report).
 - **Tap the picture** and glowing rings spread out from your finger, with a few sparks (fewer in Performance: Light). They are drawn over every style. Taps on buttons and the song card do nothing special.
+- **Rotate:** Off, every 2 minutes, or for every new song, the app changes the style by itself. It never changes it while you are using the screen.
+- **New song:** when the song changes, the cover pops in, the text slides in, a soft glow spreads from the card, and the Album theme glides to the new cover's colours.
 - **Source:** switch between direct audio and the microphone.
 - **Performance:** Normal or Light. Light is for slow screens: it draws about 30 frames per second instead of 60, at lower resolution, with no glow, fewer particles and a plain (not blurred) card background. The app also suggests it once, with a message, if it measures the display running below about 22 frames per second.
-- **Clock:** a small, dim clock in the top-right corner (it follows the radio's 12 or 24 hour setting, and gets a little brighter while the controls are showing). The button turns it off.
+- **Clock:** a small, dim clock in the top-right corner (it follows the radio's 12 or 24 hour setting, and gets a little brighter while the controls are showing). The button turns it off. While nothing is playing, a big dim clock and the date fill the screen instead (they drift a few pixels every minute so nothing stays lit in one place for hours).
 - **Progress bar:** see "Now Playing".
 - **Enable Now Playing:** only shows while notification access is off. It opens the Android screen where you switch it on.
 - **Long-press the picture** (about 1 second, not on the controls) to toggle the debug badge in the top-left corner.
 - **Settings are remembered** between launches (gain, bars, style, theme, auto-gain, source).
-- **No music playing:** the screen shows "WAITING FOR MUSIC..." with gentle motion, and dims after about 45 seconds.
+- **No music playing:** the screen shows the big dim clock and date with "WAITING FOR MUSIC..." under it and gentle motion at the bottom, and the picture dims after about 45 seconds.
 
 ## How it works
 
 1. **Direct audio (preferred).** A small native plugin (`VisualizerPlugin.java`) uses Android's `Visualizer` API on the global output mix. This reads the audio the device is playing, without the microphone. It sends about 50 FFT frames per second to the page.
 2. **Microphone fallback.** If the direct tap fails, or gives only silence for 6 seconds, the app switches to the microphone (web audio `getUserMedia`) and shows a message.
 3. **Permission.** `MainActivity` asks for `RECORD_AUDIO` at launch. The page waits until it is granted.
+
+**Privacy.** The app has **no internet permission** (removed in 2.7), so it cannot send anything anywhere; it loads everything from its own files. It asks only for audio access (Android requires it to read the sound being played) and, optionally, notification access for the song info. Settings and the event log stay on the device.
 
 The Visualizer API needs the `RECORD_AUDIO` permission even though it does not record. Some head units send audio through a separate chip or DSP, so Android never sees it. In that case the Visualizer gives silence and the app falls back to the microphone.
 
@@ -59,6 +63,7 @@ A small watchdog looks after the direct tap while the app runs:
 - **The microphone is a temporary fallback.** After falling back, every 15 seconds the app quietly tries the direct tap for about 2.5 seconds. As soon as it hears real sound (the radio's music starts, the route is fixed) the app switches back to direct audio on its own. The badge shows `mic fallback` while this is in effect.
 - **"Heard audio" means real sound.** At least 10 frames with a clearly non-zero bin above the lowest few. A single stray frame at startup, or the tiny hum some devices put in the lowest bins, no longer counts, so the 6 second fallback to the microphone works when nothing is coming through.
 - The page's own microphone and audio engine are fully shut while direct audio is in use. Left open, they make Android think music is playing.
+- **Coming back after a pause (2.7).** When the app returns to the front (for example the radio wakes up), it re-checks the song info and the audio tap straight away instead of waiting for its timers, asks again to keep the screen on, and logs "App went to the background" and "App came back to the front" so you can see it in Diagnostics.
 
 ### Crash protection (2.5)
 
@@ -98,12 +103,17 @@ The top-left card shows the cover art, song title, artist, album and the app tha
 | `android/app/src/main/java/com/hector/spectrum/NowPlayingListener.java` | Empty service that enables the notification-access switch. |
 | `android/app/src/main/res/` | Icon (a gauge-style ring of spectrum bars sweeping cyan to red around a play button, on dark carbon, plus a single-colour version for themed icons) and app name. |
 | `tools/smoke_test.py` | The smoke test (see "Smoke test"). |
+| `tools/build.ps1` | Builds the APK in a clean copy outside OneDrive (see "Rebuild"). |
 | `tests/mediatest/` | A tiny test page with a looping song, artwork and track controls, used by the smoke test's `--media` option. |
 | `Spectr-Acular.apk` | The finished release APK. |
 
 ## Rebuild
 
 Needs Node.js, Android Studio (for the SDK), and a **JDK 21** (see "Build notes").
+
+**Easiest:** `powershell -ExecutionPolicy Bypass -File tools\build.ps1`. It copies `index.html` into `www`, copies the project to a plain folder outside OneDrive (default `C:\dev\spectr-build`; node packages and Gradle caches stay there between runs), builds it there, and copies the APK back as `Spectr-Acular.apk`. OneDrive sometimes breaks Gradle with "not a regular file" errors in the project folder; building in a clean copy avoids that completely. Pass `-Jdk <folder>` if your JDK 21 is not in a folder called `jdk21` inside your user folder.
+
+The same steps by hand:
 
 ```powershell
 # 1. after editing index.html
@@ -176,6 +186,7 @@ Version 2.1, same emulator and Chrome test source:
 
 - Clock shows top right, dim, and brightens with the controls; the Clock button is in the controls: **OK.**
 - Performance: Normal ran at 61 fps and Light at 30 fps (shown in the debug badge), with fewer and lighter particles: **OK.** The emulator is fast, so the automatic "display looks slow" suggestion was **not** triggered or tested.
+- Version 2.7 on the emulator: the smoke test passes 15 of 15 with the internet permission removed (so nothing needed it); **Skyline** and **Scope** draw (Scope is the real wave from the audio tap); **Rotate: Each song** switched the style when the song changed; the song-change moment (cover pop, glow, text slide) was caught mid-animation; the idle clock and date screen appears when music pauses; the key backup's certificate fingerprint matches the one inside the built APK; the build script produced a signed APK on its first full run: **OK.**
 - Smoke test (2.6): all 17 checks pass on the emulator with `--media --emulator-extras`: install and version, permissions, cold start, test tone heard by direct audio, frame rate, no errors, Now Playing pause and resume through the media session, no crash, screenshot, audio-service kill and rebuild, tone heard again: **OK.** It also fails cleanly (message and exit code 1) for an unknown device, a missing APK, and an app that is not installed. The first version of the self-test hook lost the launch request on a cold start (a timing bug in my code); the test found it and it is fixed.
 - Diagnostics screen (2.5): shows the real app, Android and WebView versions, audio and notification state, settings, compatibility checks and the event log; scrolls; **Copy report** copies it: **OK.**
 - Touch ripples (2.5): appear at the tap point on Bars, Gauge, Waterfall and Particles: **OK.**
@@ -191,6 +202,8 @@ Version 2.1, same emulator and Chrome test source:
 - Real-world bass response and gain. The direct audio capture has coarse low-frequency resolution (about 40 Hz per step), so the lowest bars may look alike.
 - The progress bar with real streaming apps: each app decides whether it reports a length and how often it updates the position. A restart of the bar to zero on a new song was not tested (the Chrome test page only changes the title on Next).
 - The smoke test on a real phone or radio (only the emulator so far). It should work, but a radio may refuse adb, or hide its audio from Android.
+- Waking up from real radio sleep. On the emulator only switching away from the app and back was seen.
+- Skyline, Scope and the other new styles on a slow real screen (use Performance: Light if they stutter; Skyline then skips its windows).
 - An actually old WebView: the emulator's is Chrome 109. The old-browser changes are by inspection and syntax check, not by running on an old engine.
 - The "silent while Android says music is playing" path (restart the tap up to 3 times, then use the microphone) is written but could not be simulated on the emulator.
 - Song info and the buttons with **YouTube, Spotify and other real streaming apps**. Only a test page in Chrome was used. Apps that publish a standard media session should work the same, but apps differ in what they publish, and some give no cover art.

@@ -185,6 +185,7 @@ public class VisualizerPlugin extends Plugin {
 
     private void runWorker(int myGen, int size) {
         byte[] fft = new byte[size];
+        byte[] wf = new byte[size]; // the raw sound wave, for the Scope style
         int fails = 0;
         try {
             while (running && gen == myGen) {
@@ -199,11 +200,17 @@ public class VisualizerPlugin extends Plugin {
                     fails = 0;
                     JSObject o = new JSObject();
                     o.put("fft", Base64.encodeToString(fft, Base64.NO_WRAP));
+                    try {
+                        if (v != null && wf.length == fft.length && v.getWaveForm(wf) == Visualizer.SUCCESS) {
+                            o.put("wf", Base64.encodeToString(wf, Base64.NO_WRAP));
+                        }
+                    } catch (Throwable ignored) { }
                     notifyListeners("fft", o);
                 } else if (++fails >= 15) {
                     // about 0.3 seconds of nothing but errors: the audio service restarted or took the tap away
                     fails = 0;
                     fft = recreate(myGen, fft);
+                    if (wf.length != fft.length) wf = new byte[fft.length];
                 }
                 Thread.sleep(20);
             }
