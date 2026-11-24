@@ -6,22 +6,25 @@
 <title>Spectr-Acular</title>
 <style>
   html,body{margin:0;height:100%;background:#05060a;color:#cfd6e4;font-family:system-ui,Segoe UI,Roboto,sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
-  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;transition:opacity .8s}
-  #start{position:fixed;inset:0;display:flex;flex-direction:column;gap:18px;align-items:center;justify-content:center;background:rgba(5,6,10,.92);z-index:5;text-align:center;padding:24px}
-  #start h1{margin:0;font-size:clamp(28px,5vw,56px);letter-spacing:.04em}
-  #start p{margin:0;max-width:640px;opacity:.7;font-size:clamp(14px,2vw,20px);line-height:1.4}
-  button{font:inherit;color:#fff;background:#1f6feb;border:0;border-radius:16px;padding:18px 34px;font-size:clamp(18px,3vw,28px);cursor:pointer;min-height:64px}
+  canvas{position:fixed;top:0;left:0;width:100%;height:100%;display:block;transition:opacity .8s}
+  #start{position:fixed;top:0;right:0;bottom:0;left:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,6,10,.92);z-index:5;text-align:center;padding:24px}
+  #start h1{margin:9px 0;font-size:40px;font-size:clamp(28px,5vw,56px);letter-spacing:.04em}
+  #start p{margin:9px 0;max-width:640px;opacity:.7;font-size:17px;font-size:clamp(14px,2vw,20px);line-height:1.4}
+  #start button{margin:9px 0}
+  button{font:inherit;color:#fff;background:#1f6feb;border:0;border-radius:16px;padding:18px 34px;font-size:22px;font-size:clamp(18px,3vw,28px);cursor:pointer;min-height:64px}
   button.alt{background:#2a2f3d}
   button.alt.on{background:#1f6feb}
-  #bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:16px 20px;align-items:center;justify-content:center;flex-wrap:wrap;padding:18px 18px calc(18px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.8) 35%);z-index:4;transition:opacity .4s}
+  #bar{position:fixed;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;padding:10px 8px;padding:10px 8px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.8) 35%);z-index:4;transition:opacity .4s}
+  #bar>*{margin:8px 10px}
   #bar.hide{opacity:0;pointer-events:none}
-  #bar label{display:flex;align-items:center;gap:12px;font-size:24px}
+  #bar label{display:flex;align-items:center;font-size:24px}
+  #bar label input{margin-left:12px}
   #bar button{padding:12px 24px;font-size:24px;min-height:64px;min-width:96px}
   #gainwrap{transition:opacity .2s}
   input[type=range]{-webkit-appearance:none;appearance:none;width:200px;height:56px;background:transparent;margin:0}
   input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;background:#3a4156}
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:44px;height:44px;border-radius:50%;background:#4f8cff;margin-top:-16px;border:3px solid #fff}
-  #msg{position:fixed;top:12px;left:0;right:0;text-align:center;font-size:22px;color:#ffb86b;z-index:6;pointer-events:none}
+  #msg{position:fixed;top:12px;left:0;right:0;text-align:center;font-size:22px;color:#ffb86b;z-index:9;pointer-events:none}
   #badge{position:fixed;left:10px;top:8px;font-size:14px;opacity:.6;z-index:6;pointer-events:none}
   /* small, dim clock in the top-right corner; a little brighter while the controls are showing */
   #clock{position:fixed;top:14px;right:22px;font-size:30px;font-weight:300;letter-spacing:.04em;font-variant-numeric:tabular-nums;color:#9aa6c0;opacity:.6;z-index:3;pointer-events:none;text-shadow:0 0 10px rgba(0,0,0,.85);transition:opacity .4s}
@@ -29,30 +32,37 @@
   /* Performance: Light also drops the blurred card background, which is costly on weak screens */
   body.perf #np{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(8,10,16,.82)}
   /* now playing card */
-  #np{position:fixed;left:16px;top:34px;max-width:62vw;display:flex;gap:18px;align-items:center;padding:14px 20px 14px 14px;border-radius:22px;background:rgba(8,10,16,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:3;pointer-events:none}
-  #npart{width:104px;height:104px;border-radius:14px;object-fit:cover;background:#1a1f2b;flex:none;display:none;transition:opacity .3s}
+  #np{position:fixed;left:16px;top:34px;max-width:62vw;display:flex;align-items:center;padding:14px 20px 14px 14px;border-radius:22px;background:rgba(8,10,16,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:3;pointer-events:none}
+  #npart{width:104px;height:104px;border-radius:14px;object-fit:cover;background:#1a1f2b;flex:none;margin-right:18px;display:none;transition:opacity .3s}
   #np.paused #npart{opacity:.45}
-  #nptxt{min-width:0;display:flex;flex-direction:column;gap:2px}
+  #nptxt{min-width:0;display:flex;flex-direction:column}
+  #nptxt>div{margin-bottom:2px}
   #npt{font-size:30px;font-weight:650;line-height:1.15;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #npa{font-size:22px;color:#b9c3d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #npart,#npt{pointer-events:auto}
   #npapp{font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:#6fb3ff}
   /* song progress: elapsed time, a thin bar in the theme colour, total time. Read-only, hidden when the length is unknown (live streams) */
-  #npp{display:none;align-items:center;gap:10px;margin-top:8px;min-width:300px;font-size:15px;color:#9aa6c0;font-variant-numeric:tabular-nums}
+  #npp{display:none;align-items:center;margin-top:8px;min-width:300px;font-size:15px;color:#9aa6c0;font-variant-numeric:tabular-nums}
   #np.hasprog #npp{display:flex}
   #np.bare #npp{display:none}
-  #npbar{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.18);overflow:hidden}
+  #npbar{flex:1;margin:0 10px;height:6px;border-radius:3px;background:rgba(255,255,255,.18);overflow:hidden}
   #npfill{height:100%;width:0;border-radius:3px;background:var(--acc,#6fb3ff)}
-  #npctl{display:none;gap:12px;margin-top:10px}
+  #npctl{display:none;margin-top:10px}
   #np.ctl #npctl{display:flex}
   /* no song info (access off, or nothing playing): show just the buttons, and only while the controls are showing */
   #np.bare{display:none}
   #np.bare.ctl{display:flex}
   #np.bare #npart,#np.bare #npt,#np.bare #npa,#np.bare #npapp{display:none}
   #np.bare #npctl{margin-top:0}
-  #npctl button{min-width:84px;min-height:64px;padding:0 20px;border-radius:16px;pointer-events:auto}
+  #npctl button{min-width:84px;min-height:64px;padding:0 20px;margin-right:12px;border-radius:16px;pointer-events:auto}
+  #npctl button:last-child{margin-right:0}
   #npctl svg{width:34px;height:34px;fill:#fff;display:block;margin:auto}
-  #idle{position:fixed;left:0;right:0;top:42%;text-align:center;font-size:clamp(20px,3vw,34px);letter-spacing:.12em;opacity:0;z-index:3;pointer-events:none;transition:opacity .6s;color:#9aa6c0}
+  #idle{position:fixed;left:0;right:0;top:42%;text-align:center;font-size:26px;font-size:clamp(20px,3vw,34px);letter-spacing:.12em;opacity:0;z-index:3;pointer-events:none;transition:opacity .6s;color:#9aa6c0}
+  /* diagnostics screen */
+  #diag{position:fixed;top:0;right:0;bottom:0;left:0;display:none;flex-direction:column;background:rgba(5,6,10,.97);z-index:8;padding:18px}
+  #diag.show{display:flex}
+  #diagtxt{flex:1;margin:0 0 14px;overflow:auto;font:15px/1.5 Consolas,Menlo,monospace;white-space:pre-wrap;color:#cfd6e4;-webkit-user-select:text;user-select:text;touch-action:pan-y}
+  #diagbtns button{margin-right:14px}
 </style>
 </head>
 <body>
@@ -88,13 +98,40 @@
   <button id="src" class="alt">Source</button>
   <button id="perf" class="alt">Performance</button>
   <button id="clk" class="alt">Clock</button>
+  <button id="dg" class="alt">Diagnostics</button>
   <button id="npen" class="alt" style="display:none">Enable Now Playing</button>
   <button id="full" class="alt">Fullscreen</button>
 </div>
+<div id="diag"><pre id="diagtxt"></pre><div id="diagbtns"><button id="dcopy">Copy report</button><button id="dclose" class="alt">Close</button></div></div>
 <script>
 (()=>{
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
+
+// ---------- event log + crash guard ----------
+// The last 60 notable events are kept in storage (they survive restarts) and are shown in Diagnostics.
+let evlog=[];
+try{evlog=JSON.parse(localStorage.getItem('spect.log')||'[]');if(!Array.isArray(evlog))evlog=[]}catch(_){evlog=[]}
+function logEvent(m){
+  evlog.push({t:Date.now(),m:String(m).slice(0,170)});
+  if(evlog.length>60)evlog.splice(0,evlog.length-60);
+  try{localStorage.setItem('spect.log',JSON.stringify(evlog))}catch(_){}
+}
+let jsErrors=0;
+addEventListener('error',e=>{jsErrors++;logEvent('Page error: '+(e.message||'?')+' ('+String(e.filename||'').split('/').pop()+':'+(e.lineno||'?')+')')});
+addEventListener('unhandledrejection',e=>{jsErrors++;logEvent('Unhandled promise error: '+((e.reason&&(e.reason.message||e.reason))||'?'))});
+// Safe start: if the last three starts all died before reaching "healthy" (6 s of running), start from default settings.
+let safeMode=false;
+(function(){
+  let b=null;try{b=JSON.parse(localStorage.getItem('spect.boot')||'null')}catch(_){}
+  const bad=(b&&b.ok===false)?(b.n||0)+1:0;
+  if(bad>=3){safeMode=true;try{localStorage.removeItem('spect.settings')}catch(_){}}
+  try{localStorage.setItem('spect.boot',JSON.stringify({n:safeMode?0:bad,ok:false}))}catch(_){}
+  logEvent('App started'+(safeMode?' in SAFE MODE (three bad starts in a row: settings reset)':bad?' (the previous start did not finish cleanly)':''));
+})();
+const bootOk=()=>{try{localStorage.setItem('spect.boot',JSON.stringify({n:0,ok:true}))}catch(_){}};
+setTimeout(bootOk,6000);
+addEventListener('pagehide',bootOk);
 let W=0,H=0,dpr=1,perfOn=false; // perfOn = "Performance: Light" (lower resolution, 30 fps, no glow)
 function resize(){dpr=Math.min(window.devicePixelRatio||1,perfOn?1:2);W=cv.width=innerWidth*dpr;H=cv.height=innerHeight*dpr}
 addEventListener('resize',resize);resize();
@@ -108,6 +145,7 @@ try{Object.assign(S,JSON.parse(localStorage.getItem('spect.settings')||'{}'))}ca
 S.style=Math.max(0,Math.min(styles.length-1,S.style|0));
 S.theme=Math.max(0,Math.min(themes.length-1,S.theme|0));
 S.bars=Math.max(16,Math.min(96,S.bars|0))||48;
+if(safeMode){S.perf=true;S.style=0;S.src='auto'} // safe start: plainest style, light mode
 function save(){try{localStorage.setItem('spect.settings',JSON.stringify(S))}catch(_){}}
 let toastT;function toast(t,ms){$('msg').textContent=t;clearTimeout(toastT);toastT=setTimeout(()=>$('msg').textContent='',ms||2200)}
 function syncUI(){
@@ -119,6 +157,7 @@ function syncUI(){
   $('clk').textContent='Clock: '+(S.clock?'On':'Off');$('clk').classList.toggle('on',S.clock);
 }
 syncUI();if(window.Capacitor)$('full').style.display='none';
+if(safeMode)setTimeout(()=>toast('Started in safe mode with default settings. See Diagnostics.',8000),1500);
 
 // ---------- state ----------
 let audioCtx,analyser,freq,mode='none',t0=performance.now(),micStream=null;
@@ -139,10 +178,10 @@ async function startMicOnly(){
     const src=audioCtx.createMediaStreamSource(stream);
     analyser=audioCtx.createAnalyser();analyser.fftSize=FFT;analyser.smoothingTimeConstant=0.6;
     src.connect(analyser);freq=new Uint8Array(analyser.frequencyBinCount);srcRate=audioCtx.sampleRate;srcFft=FFT;
-    mode='mic';begin();
+    mode='mic';begin();logEvent('Microphone started');
   }catch(e){
     $('msg').textContent='Audio unavailable: '+(e.name||e.message)+'. '+(natErr?'Direct audio: '+natErr+'. ':'')+'Try Demo, or check the audio permission.';
-    $('start').style.display='flex';
+    $('start').style.display='flex';logEvent('Microphone unavailable: '+(e.name||e.message));
   }
 }
 // Fully shuts the microphone and the page's audio engine. While direct audio is in use they must be off: an open page audio
@@ -180,7 +219,7 @@ async function startNative(quiet){ // quiet = a silent switch back to direct aud
   });
   if(natStatusHandle){try{await natStatusHandle.remove()}catch(_){}natStatusHandle=null}
   natStatusHandle=C.addListener('SpectVisualizer','status',e=>{ // the plugin rebuilt a tap that Android took away
-    if(e&&e.state==='restored'){vizRestarts++;silentSince=0;lastFrameT=performance.now()}
+    if(e&&e.state==='restored'){vizRestarts++;silentSince=0;lastFrameT=performance.now();logEvent('The audio tap was rebuilt by the plugin (attempt '+(e.attempts||1)+')')}
   });
   for(let i=0;;i++){ // wait for the user to allow audio access (asked by the app at launch)
     if((await nat('granted')).granted)break;
@@ -192,13 +231,13 @@ async function startNative(quiet){ // quiet = a silent switch back to direct aud
   stopMic();
   srcRate=r.sampleRate||48000;srcFft=r.captureSize||1024;
   freq=new Uint8Array(srcFft>>1);natSeen=false;sigFrames=0;natStart=performance.now();lastFrameT=natStart;silentSince=0;
-  mode='native';if(!quiet)begin();
+  mode='native';if(!quiet)begin();logEvent('Direct audio started ('+srcRate+' Hz'+(quiet?', back from the microphone':'')+')');
 }
 async function stopNative(){try{await nat('stop')}catch(_){}}
 async function startAuto(){
   if(S.src==='mic'||!window.Capacitor)return startMicOnly();
   try{await startNative()}
-  catch(e){natErr=(e&&(e.message||e.errorMessage))||String(e);await startMicOnly()}
+  catch(e){natErr=(e&&(e.message||e.errorMessage))||String(e);logEvent('Direct audio unavailable: '+natErr+' -> using the microphone');await startMicOnly()}
 }
 async function toggleSource(){
   if(mode==='native'){
@@ -252,8 +291,19 @@ const hue=(i,n)=>{const t=themes[S.theme];return t.a+(t.b-t.a)*(i/n)};
 
 // ---------- drawing ----------
 let lastFrame=0,fps=60,slowMs=0,slowHinted=false;
+let drawErrors=0;
 function draw(){
   requestAnimationFrame(draw);
+  try{drawFrame()}catch(err){drawFailed(err)} // one bad frame must never stop the animation loop
+}
+function drawFailed(err){
+  drawErrors++;
+  if(drawErrors<=3||drawErrors%50===0)logEvent('Draw error in '+styles[S.style]+': '+((err&&err.message)||err));
+  try{ctx.shadowBlur=0;ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over'}catch(_){} // undo whatever the failed style left behind
+  if(drawErrors===3&&S.style!==0){S.style=0;syncUI();toast('That style had a problem, so Bars was selected');logEvent('Switched to Bars after repeated draw errors')}
+  if(drawErrors>=60&&!sessionStorage.getItem('spect.reloaded')){try{sessionStorage.setItem('spect.reloaded','1')}catch(_){}logEvent('Reloading the page after repeated draw errors');location.reload()}
+}
+function drawFrame(){
   const ft=performance.now();
   if(perfOn&&ft-lastFrame<30)return; // Light mode: about 30 frames per second
   const ivl=ft-lastFrame;lastFrame=ft;
@@ -261,12 +311,12 @@ function draw(){
     fps+=(1000/ivl-fps)*0.05;
     if(!perfOn&&!slowHinted&&fps<22&&(mode==='native'||mode==='mic'||mode==='demo')){
       slowMs+=ivl;
-      if(slowMs>6000){slowHinted=true;toast('The display looks slow. Try Performance: Light in the controls.',7000)}
+      if(slowMs>6000){slowHinted=true;logEvent('Display is slow ('+Math.round(fps)+' fps): suggested Performance: Light');toast('The display looks slow. Try Performance: Light in the controls.',7000)}
     }else if(fps>=22)slowMs=0;
   }
   if(!(mode==='demo'||mode==='native'||analyser))return;
   if(mode==='native'&&!natSeen&&performance.now()-natStart>6000){ // radio gives silence: use the mic
-    fellBack=true;stopNative();toast('No audio from the radio output - listening via microphone');
+    fellBack=true;logEvent('No sound from the radio output after 6 s -> using the microphone');stopNative();toast('No audio from the radio output - listening via microphone');
     if(analyser)mode='mic';else{mode='none';startMicOnly()}
     return;
   }
@@ -321,6 +371,7 @@ function draw(){
     default:drawBars(n,S.style===1);
   }
   if(egg)drawFaces(n,dt,now);
+  drawRipples(dt,now);
 }
 function drawBars(n,mirror){
   const gap=W*0.004,bw=(W-gap*(n+1))/n,base=mirror?H*0.5:H*0.92,maxH=mirror?H*0.4:H*0.8;
@@ -521,10 +572,11 @@ async function npInit(){
     let en=false;
     try{en=!!(await natMedia('start')).enabled}catch(_){}
     $('npen').style.display=en?'none':'';
+    if(en!==npEnabledState){logEvent('Notification access '+(en?'ON':'OFF'));npEnabledState=en}
     await sleep(en?6000:2500);
   }
 }
-let npVia=''; // how the last button press was sent: "session" (the app's own controls) or "key" (media key)
+let npEnabledState=null,npVia=''; // how the last button press was sent: "session" (the app's own controls) or "key" (media key)
 function npControl(a){
   if(a==='toggle'){
     if(np.pos>=0){np.pos=np.pos+(performance.now()-np.t0)*np.speed;np.t0=performance.now()} // freeze or resume the bar right away
@@ -579,7 +631,7 @@ async function probeNative(){
     await natVis('start');
     const t0=performance.now();
     while(performance.now()-t0<2500&&sigFrames<10)await new Promise(r=>setTimeout(r,200));
-    if(sigFrames>=10){probing=false;fellBack=false;await startNative(true);return}
+    if(sigFrames>=10){probing=false;fellBack=false;logEvent('Probe heard real sound -> back to direct audio');await startNative(true);return}
   }catch(_){}
   probing=false;
   try{await natVis('stop')}catch(_){}
@@ -603,10 +655,10 @@ async function watchdog(){
       if(now-wdLast<5000)return;
       wdLast=now;
       if(wdRestarts>=3){ // restarting does not help: use the microphone
-        wdRestarts=0;fellBack=true;await stopNative();toast('Radio audio lost - listening via microphone',4000);
+        wdRestarts=0;fellBack=true;logEvent('Watchdog: restarting did not help -> using the microphone');await stopNative();toast('Radio audio lost - listening via microphone',4000);
         if(analyser)mode='mic';else{mode='none';await startMicOnly()}
       }else{
-        wdRestarts++;await natVis('start');silentSince=0;lastFrameT=performance.now();
+        wdRestarts++;logEvent('Watchdog: '+why+' -> restarting the audio tap ('+wdRestarts+' of 3)');await natVis('start');silentSince=0;lastFrameT=performance.now();
       }
     }else if(mode==='mic'&&fellBack&&S.src==='auto'&&now-recLast>15000){
       recLast=now;await probeNative();
@@ -668,6 +720,103 @@ function drawFace(x,y,R,rot,h){
   ctx.restore();
 }
 
+// ---------- touch ripples ----------
+// A tap on the picture sends out glowing rings and a few sparks. They are drawn after every style has finished,
+// so they look the same on all of them. Taps on buttons, the song card and the diagnostics screen do nothing here.
+let ripples=[];
+function addRipple(x,y){
+  if(ripples.length>=12)ripples.shift();
+  const sparks=[],base=Math.min(W,H);
+  if(!perfOn)for(let i=0;i<10;i++){const a=Math.random()*Math.PI*2,sp=(0.18+Math.random()*0.35)*base;sparks.push({vx:Math.cos(a)*sp,vy:Math.sin(a)*sp})}
+  ripples.push({x:x*dpr,y:y*dpr,t:performance.now(),h:hue(Math.random()*S.bars|0,S.bars),sparks});
+}
+function drawRipples(dt,now){
+  if(!ripples.length)return;
+  const base=Math.min(W,H),LIFE=1300,boost=1+Math.min(1,bass*1.4)*0.5;
+  ctx.save();
+  for(let k=ripples.length-1;k>=0;k--){
+    const r=ripples[k],age=now-r.t;
+    if(age>=LIFE){ripples.splice(k,1);continue}
+    const p=age/LIFE,fade=Math.pow(1-p,1.6);
+    for(let j=0;j<2;j++){ // two rings, the second one a little behind the first
+      const pj=p-j*0.12;if(pj<=0)continue;
+      const rad=base*(0.02+0.24*(1-Math.pow(1-pj,3)))*boost;
+      ctx.globalAlpha=fade*(j?0.55:0.95);
+      ctx.lineWidth=Math.max(1.5*dpr,(10-8*pj)*dpr);
+      ctx.strokeStyle=`hsl(${r.h+j*25},95%,${62+j*6}%)`;
+      ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=14*dpr;
+      ctx.beginPath();ctx.arc(r.x,r.y,rad,0,Math.PI*2);ctx.stroke();
+    }
+    ctx.shadowBlur=0;
+    if(p<0.35){ // soft flash where the finger landed
+      const fr=base*0.06,g=ctx.createRadialGradient(r.x,r.y,0,r.x,r.y,fr);
+      g.addColorStop(0,`hsla(${r.h},95%,75%,${0.7*(1-p/0.35)})`);g.addColorStop(1,'transparent');
+      ctx.globalAlpha=1;ctx.fillStyle=g;ctx.beginPath();ctx.arc(r.x,r.y,fr,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle=`hsl(${r.h},95%,72%)`;
+    for(const s of r.sparks){
+      const q=1-Math.pow(1-p,2);
+      ctx.globalAlpha=fade;ctx.beginPath();ctx.arc(r.x+s.vx*q*1.1,r.y+s.vy*q*1.1,Math.max(1,3*dpr*(1-p)),0,Math.PI*2);ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+addEventListener('pointerdown',e=>{
+  if(e.target.closest&&e.target.closest('#bar,#start,#np,#diag'))return;
+  addRipple(e.clientX,e.clientY);
+});
+
+// ---------- diagnostics ----------
+function compatChecks(){
+  const sup=(p,v)=>{try{return !!(window.CSS&&CSS.supports&&CSS.supports(p,v))}catch(_){return false}};
+  return [
+    ['CSS inset',sup('inset','0')],['CSS clamp()',sup('font-size','clamp(1px,2vw,3px)')],['flex gap',sup('gap','1px')],
+    ['backdrop-filter',sup('backdrop-filter','blur(1px)')||sup('-webkit-backdrop-filter','blur(1px)')],
+    ['Web Audio',!!(window.AudioContext||window.webkitAudioContext)],['getUserMedia',!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)],
+    ['Intl',typeof Intl!=='undefined'],['PointerEvent',!!window.PointerEvent],['Capacitor bridge',!!(window.Capacitor&&window.Capacitor.nativePromise)]
+  ];
+}
+async function buildReport(){
+  const L=[],now=new Date(),ua=navigator.userAgent,chrome=(ua.match(/Chrome\/([\d.]+)/)||[])[1]||'?';
+  let info={};
+  if(window.Capacitor&&window.Capacitor.nativePromise){try{info=await natVis('info')}catch(e){info={}}}
+  L.push('SPECTR-ACULAR DIAGNOSTICS   '+now.toISOString());
+  L.push('');
+  L.push('App: '+(info.versionName||'?')+' (code '+(info.versionCode||'?')+')   id '+(info.packageName||'?'));
+  L.push('Device: '+(info.manufacturer||'?')+' '+(info.model||'?')+', Android '+(info.release||'?')+' (API '+(info.sdk||'?')+')');
+  L.push('WebView: '+(info.webView||'?')+'   [page engine: Chrome '+chrome+']');
+  L.push('Screen: '+innerWidth+'x'+innerHeight+' css px, density '+(window.devicePixelRatio||1)+', canvas '+W+'x'+H);
+  L.push('');
+  L.push('Audio source: '+(mode==='native'?'direct audio':mode==='mic'?'microphone':mode)+(fellBack&&mode==='mic'?' (fallback)':''));
+  L.push('Audio permission: '+(info.audioGranted===undefined?'?':info.audioGranted?'granted':'NOT granted'));
+  L.push('Frames: last '+(lastFrameT?(Math.round((performance.now()-lastFrameT)/100)/10)+' s ago':'none yet')+', heard sound: '+(natSeen?'yes':'no')+', tap rebuilt: '+vizRestarts+' time(s), watchdog restarts: '+wdRestarts);
+  L.push('Frame rate: '+Math.round(fps)+' fps'+(perfOn?' (Performance: Light)':''));
+  L.push('');
+  L.push('Now playing: notification access '+(npEnabledState===null?'unknown':npEnabledState?'ON':'OFF')+(np.title?', "'+np.title+'" by '+(np.artist||'?')+' in '+(np.app||'?')+(np.playing?' (playing)':' (paused)'):', nothing reported')+(npVia?', last button used: '+npVia:''));
+  L.push('');
+  L.push('Settings: '+JSON.stringify(S));
+  L.push('Safe mode this start: '+(safeMode?'YES':'no')+'   page errors: '+jsErrors+'   draw errors: '+drawErrors);
+  L.push('');
+  L.push('Compatibility with this WebView:');
+  compatChecks().forEach(c=>L.push('  '+(c[1]?'ok       ':'MISSING  ')+c[0]));
+  L.push('');
+  L.push('Recent events (newest last):');
+  evlog.slice(-30).forEach(e=>{const d=new Date(e.t);L.push('  '+pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds())+'  '+e.m)});
+  return L.join('\n');
+}
+async function openDiag(){
+  $('diagtxt').textContent='Collecting...';$('diag').classList.add('show');
+  try{$('diagtxt').textContent=await buildReport()}catch(e){$('diagtxt').textContent='Could not build the report: '+(e&&e.message||e)}
+}
+$('dg').onclick=openDiag;
+$('dclose').onclick=()=>$('diag').classList.remove('show');
+$('dcopy').onclick=async()=>{
+  const t=$('diagtxt').textContent;let ok=false;
+  try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(t);ok=true}}catch(_){}
+  if(!ok){try{const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');document.body.removeChild(ta)}catch(_){}}
+  toast(ok?'Report copied':'Could not copy. You can photograph this screen instead.',3500);
+};
+
 draw();
 if(window.Capacitor)startAuto(); // auto-start inside the Android app
 
@@ -680,7 +829,7 @@ function changeTheme(d){S.theme=(S.theme+d+themes.length)%themes.length;setAccen
 $('style').onclick=()=>changeStyle(1);
 $('theme').onclick=()=>changeTheme(1);
 $('src').onclick=toggleSource;
-$('perf').onclick=()=>{S.perf=!S.perf;save();applyPerf();syncUI();toast(S.perf?'Performance: Light (lower detail, smoother on slow screens)':'Performance: Normal')};
+$('perf').onclick=()=>{S.perf=!S.perf;logEvent('Performance '+(S.perf?'Light':'Normal'));save();applyPerf();syncUI();toast(S.perf?'Performance: Light (lower detail, smoother on slow screens)':'Performance: Normal')};
 $('clk').onclick=()=>{S.clock=!S.clock;save();tickClock();syncUI();toast('Clock '+(S.clock?'on':'off'))};
 $('full').onclick=()=>{const d=document.documentElement;document.fullscreenElement?document.exitFullscreen():(d.requestFullscreen&&d.requestFullscreen())};
 
@@ -689,7 +838,7 @@ let hideT;function hideLater(){clearTimeout(hideT);$('bar').classList.remove('hi
 // long-press on the picture (not on the controls) toggles the small debug badge
 let lpT,sw=null;
 addEventListener('pointerdown',e=>{
-  if(e.target.closest&&e.target.closest('#bar,#start,#np'))return;
+  if(e.target.closest&&e.target.closest('#bar,#start,#np,#diag'))return;
   clearTimeout(lpT);lpT=setTimeout(()=>{badgeOn=!badgeOn;$('badge').textContent='';toast('Debug info '+(badgeOn?'on':'off'))},900);
   sw={x:e.clientX,y:e.clientY,t:performance.now()};
 });

@@ -2,8 +2,11 @@ package com.hector.spectrum;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.media.AudioManager;
+import android.os.Build;
+import android.webkit.WebView;
 import android.media.audiofx.Visualizer;
 import android.util.Base64;
 import android.util.Log;
@@ -38,6 +41,31 @@ public class VisualizerPlugin extends Plugin {
     public void granted(PluginCall call) {
         JSObject r = new JSObject();
         r.put("granted", hasAudioPermission());
+        call.resolve(r);
+    }
+
+    /** App, device and system facts for the Diagnostics screen. */
+    @PluginMethod
+    public void info(PluginCall call) {
+        JSObject r = new JSObject();
+        try {
+            Context c = getContext();
+            PackageInfo pi = c.getPackageManager().getPackageInfo(c.getPackageName(), 0);
+            r.put("packageName", c.getPackageName());
+            r.put("versionName", pi.versionName);
+            r.put("versionCode", Build.VERSION.SDK_INT >= 28 ? pi.getLongVersionCode() : pi.versionCode);
+        } catch (Throwable ignored) { }
+        r.put("manufacturer", Build.MANUFACTURER);
+        r.put("model", Build.MODEL);
+        r.put("release", Build.VERSION.RELEASE);
+        r.put("sdk", Build.VERSION.SDK_INT);
+        r.put("audioGranted", hasAudioPermission());
+        try {
+            if (Build.VERSION.SDK_INT >= 26) {
+                PackageInfo w = WebView.getCurrentWebViewPackage();
+                if (w != null) r.put("webView", w.packageName + " " + w.versionName);
+            }
+        } catch (Throwable ignored) { }
         call.resolve(r);
     }
 
