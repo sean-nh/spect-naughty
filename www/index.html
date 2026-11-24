@@ -121,9 +121,11 @@ function syncUI(){
 syncUI();if(window.Capacitor)$('full').style.display='none';
 
 // ---------- state ----------
-let audioCtx,analyser,freq,mode='none',t0=performance.now();
+let audioCtx,analyser,freq,mode='none',t0=performance.now(),micStream=null;
 let vals=[],peaks=[],bass=0,bassAvg=0,flash=0;
 let srcRate=48000,srcFft=4096,natHandle=null,natStart=0,natSeen=false,natErr='';
+// audio watchdog state (see "audio watchdog" below)
+let natStatusHandle=null,sigFrames=0,lastFrameT=0,silentSince=0,vizRestarts=0,fellBack=false,probing=false,recLast=0,wdBusy=false,wdRestarts=0,wdLast=0,okSince=0;
 let agRef=0.3,gEff=S.gain,idleT=0,idleMix=0,badgeOn=false,badgeN=0,lastNow=performance.now();
 let rings=[],lastSpawn=0;
 const FFT=4096;
@@ -132,6 +134,7 @@ const FFT=4096;
 async function startMicOnly(){
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    micStream=stream;
     audioCtx=new (window.AudioContext||window.webkitAudioContext)();
     const src=audioCtx.createMediaStreamSource(stream);
     analyser=audioCtx.createAnalyser();analyser.fftSize=FFT;analyser.smoothingTimeConstant=0.6;
@@ -142,13 +145,20 @@ async function startMicOnly(){
     $('start').style.display='flex';
   }
 }
+// Fully shuts the microphone and the page's audio engine. While direct audio is in use they must be off: an open page audio
+// engine makes Android report "music is playing" (it is silent, but it counts), which would fool the watchdog.
+function stopMic(){
+  try{micStream&&micStream.getTracks().forEach(t=>t.stop())}catch(_){}
+  try{audioCtx&&audioCtx.close()}catch(_){}
+  micStream=null;audioCtx=null;analyser=null;
+}
 function begin(){
   $('start').style.display='none';$('bar').classList.remove('hide');hideLater();
   try{navigator.wakeLock&&navigator.wakeLock.request('screen')}catch(_){}
 }
 // Direct tap of Android's audio output (Visualizer API) via native plugin, using Capacitor's built-in bridge calls
 const nat=(m,o)=>window.Capacitor.nativePromise('SpectVisualizer',m,o||{});
-async function startNative(){
+async function startNative(quiet){ // quiet = a silent switch back to direct audio, without showing the controls
   for(let i=0;i<50&&!(window.Capacitor&&window.Capacitor.nativePromise&&window.Capacitor.addListener);i++)await new Promise(r=>setTimeout(r,100)); // bridge can load a moment late
   const C=window.Capacitor;
   if(!C||!C.nativePromise||!C.addListener)throw new Error('not in app');
@@ -160,7 +170,17 @@ async function startNative(){
       const m=k===0?Math.abs(sb(0)):Math.hypot(sb(2*k),sb(2*k+1));
       out[k]=Math.max(0,Math.min(255,(255*Math.log10(1+m)/2.26-25)*255/230));
     }
-    freq=out;if(out.some(x=>x>8))natSeen=true;
+    if(!probing)freq=out; // while only probing, the microphone view keeps its own data
+    lastFrameT=performance.now();
+    // real signal = a clearly non-zero bin above the lowest few (those carry DC offset and hum even in "silence");
+    // a single stray frame at startup is not music either: it takes ~10 real ones
+    let sig=false;for(let k=3;k<out.length;k++)if(out[k]>30){sig=true;break}
+    if(sig){if(++sigFrames>=10)natSeen=true;silentSince=0}
+    else if(!silentSince)silentSince=lastFrameT;
+  });
+  if(natStatusHandle){try{await natStatusHandle.remove()}catch(_){}natStatusHandle=null}
+  natStatusHandle=C.addListener('SpectVisualizer','status',e=>{ // the plugin rebuilt a tap that Android took away
+    if(e&&e.state==='restored'){vizRestarts++;silentSince=0;lastFrameT=performance.now()}
   });
   for(let i=0;;i++){ // wait for the user to allow audio access (asked by the app at launch)
     if((await nat('granted')).granted)break;
@@ -169,9 +189,10 @@ async function startNative(){
     await new Promise(r=>setTimeout(r,500));
   }
   const r=await nat('start');
+  stopMic();
   srcRate=r.sampleRate||48000;srcFft=r.captureSize||1024;
-  freq=new Uint8Array(srcFft>>1);natSeen=false;natStart=performance.now();
-  mode='native';begin();
+  freq=new Uint8Array(srcFft>>1);natSeen=false;sigFrames=0;natStart=performance.now();lastFrameT=natStart;silentSince=0;
+  mode='native';if(!quiet)begin();
 }
 async function stopNative(){try{await nat('stop')}catch(_){}}
 async function startAuto(){
@@ -245,7 +266,7 @@ function draw(){
   }
   if(!(mode==='demo'||mode==='native'||analyser))return;
   if(mode==='native'&&!natSeen&&performance.now()-natStart>6000){ // radio gives silence: use the mic
-    stopNative();toast('No audio from the radio output - listening via microphone');
+    fellBack=true;stopNative();toast('No audio from the radio output - listening via microphone');
     if(analyser)mode='mic';else{mode='none';startMicOnly()}
     return;
   }
@@ -282,7 +303,7 @@ function draw(){
   bass=bsum/bc;bassAvg=bassAvg*0.92+bass*0.08;
   if(bass>bassAvg*1.25&&bass>0.25)flash=1;flash*=0.9;
 
-  if(badgeOn&&(badgeN=(badgeN+1)%20)===0)$('badge').textContent=(mode==='native'?'direct audio':mode==='mic'?'microphone':mode)+' | raw peak '+mx.toFixed(2)+' | gain '+gEff.toFixed(1)+(idleT>2?' | idle':'')+' | fps '+Math.round(fps)+(perfOn?' | light':'')+(npVia?' | media '+npVia:'');
+  if(badgeOn&&(badgeN=(badgeN+1)%20)===0)$('badge').textContent=(mode==='native'?'direct audio':mode==='mic'?'microphone':mode)+' | raw peak '+mx.toFixed(2)+' | gain '+gEff.toFixed(1)+(idleT>2?' | idle':'')+' | fps '+Math.round(fps)+(perfOn?' | light':'')+(npVia?' | media '+npVia:'')+(vizRestarts?' | tap restarted x'+vizRestarts:'')+(fellBack&&mode==='mic'?' | mic fallback':'');
 
   ctx.fillStyle='rgba(5,6,10,0.35)';ctx.fillRect(0,0,W,H);
   const th=themes[S.theme],gh=th.a+(th.b-th.a)*0.3;
@@ -543,6 +564,57 @@ function applyPerf(){
   resize();wfc=null;
 }
 applyPerf();
+
+// ---------- audio watchdog ----------
+// Keeps the direct audio tap healthy while the app runs:
+//  - the plugin rebuilds a tap that Android takes away (e.g. the audio service restarts);
+//  - if frames stop, or stay silent while Android says music is playing, the tap is restarted (up to 3 times);
+//  - if that does not help, the microphone takes over;
+//  - if we had to use the microphone, every 15 s the direct tap is tried on the side for ~2.5 s; as soon as it hears real
+//    sound (radio music started, route fixed) the app switches back to direct audio.
+const natVis=(m,o)=>window.Capacitor.nativePromise('SpectVisualizer',m,o||{});
+async function probeNative(){
+  probing=true;sigFrames=0;
+  try{
+    await natVis('start');
+    const t0=performance.now();
+    while(performance.now()-t0<2500&&sigFrames<10)await new Promise(r=>setTimeout(r,200));
+    if(sigFrames>=10){probing=false;fellBack=false;await startNative(true);return}
+  }catch(_){}
+  probing=false;
+  try{await natVis('stop')}catch(_){}
+}
+async function watchdog(){
+  if(wdBusy||!window.Capacitor||!window.Capacitor.nativePromise)return;
+  const now=performance.now();
+  wdBusy=true;
+  try{
+    if(mode==='native'&&natSeen){
+      let why='';
+      if(now-lastFrameT>3000)why='no frames';
+      else if(silentSince&&now-silentSince>8000){
+        try{if((await natVis('musicActive')).active)why='silent while music plays'}catch(_){}
+      }
+      if(!why){
+        if(!okSince)okSince=now;else if(now-okSince>30000)wdRestarts=0;
+        return;
+      }
+      okSince=0;
+      if(now-wdLast<5000)return;
+      wdLast=now;
+      if(wdRestarts>=3){ // restarting does not help: use the microphone
+        wdRestarts=0;fellBack=true;await stopNative();toast('Radio audio lost - listening via microphone',4000);
+        if(analyser)mode='mic';else{mode='none';await startMicOnly()}
+      }else{
+        wdRestarts++;await natVis('start');silentSince=0;lastFrameT=performance.now();
+      }
+    }else if(mode==='mic'&&fellBack&&S.src==='auto'&&now-recLast>15000){
+      recLast=now;await probeNative();
+    }else okSince=0;
+  }catch(_){}
+  finally{wdBusy=false}
+}
+setInterval(watchdog,1500);
 
 // ---------- hidden extra ----------
 // Tap the cover picture (or the song title) 7 times in a row, each tap within about a second of the last, to

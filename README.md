@@ -4,7 +4,7 @@ An audio spectrum visualizer for a custom Android car radio (Android 13). It was
 
 - **App name:** Spectr-Acular (earlier names: Spect-Analyzery, and Spect-Naughty for v1.6)
 - **Package ID:** `com.hector.spectanalyzery` (v1.7 and newer). Earlier builds used `com.hector.spectrum` (up to v1.1) and `com.hector.spectnaughty` (v1.6). Because the ID is different, this app installs **next to** those instead of replacing them, and it can never clash with a copy signed with a different key. Versions 1.7 and newer update each other normally. (The code's internal package folder is still `com/hector/spectrum`; that name is separate from the app's ID.)
-- **Version:** 2.3 (versionCode 13)
+- **Version:** 2.4 (versionCode 14)
 - **Built:** 2026-11-24 (v1.1 built 2026-11-20)
 - **Target:** Android 13 car head unit, landscape. The app also runs on newer Android versions.
 
@@ -47,6 +47,23 @@ The app asks to "record audio". That is Android's wording. In normal use the app
 3. **Permission.** `MainActivity` asks for `RECORD_AUDIO` at launch. The page waits until it is granted.
 
 The Visualizer API needs the `RECORD_AUDIO` permission even though it does not record. Some head units send audio through a separate chip or DSP, so Android never sees it. In that case the Visualizer gives silence and the app falls back to the microphone.
+
+### Keeping direct audio healthy (2.4)
+
+A small watchdog looks after the direct tap while the app runs:
+
+- **The tap rebuilds itself.** If Android takes the tap away (for example the audio service restarts), the plugin notices within about half a second and builds a new one, retrying with a growing pause. Tested by killing the audio service during a song: it was back after about a second. The debug badge shows `tap restarted x1` (and so on).
+- **Stuck or silent while music plays.** If frames stop arriving, or stay silent for 8 seconds while Android says music is playing, the tap is restarted (up to 3 times). If that does not help, the microphone takes over and says so. A pause is not mistaken for a fault, because Android reports whether anything is really playing.
+- **The microphone is a temporary fallback.** After falling back, every 15 seconds the app quietly tries the direct tap for about 2.5 seconds. As soon as it hears real sound (the radio's music starts, the route is fixed) the app switches back to direct audio on its own. The badge shows `mic fallback` while this is in effect.
+- **"Heard audio" means real sound.** At least 10 frames with a clearly non-zero bin above the lowest few. A single stray frame at startup, or the tiny hum some devices put in the lowest bins, no longer counts, so the 6 second fallback to the microphone works when nothing is coming through.
+- The page's own microphone and audio engine are fully shut while direct audio is in use. Left open, they make Android think music is playing.
+
+## Compatibility
+
+- Built for Android 7.0 (API 24) up to Android 16 (API 36).
+- Tested on an Android 13 (API 33) emulator, and earlier builds also ran on an API 37 emulator. Not yet tested on a real radio or on other Android versions.
+- Very old browser engines ("Android System WebView") on cheap radios may lack features the page uses; a compatibility pass is planned.
+- Android Automotive OS (the car maker's built-in system) is a different platform and is not covered: this app is for aftermarket radios running normal Android.
 
 ## Now Playing
 
@@ -127,6 +144,7 @@ Version 2.1, same emulator and Chrome test source:
 
 - Clock shows top right, dim, and brightens with the controls; the Clock button is in the controls: **OK.**
 - Performance: Normal ran at 61 fps and Light at 30 fps (shown in the debug badge), with fewer and lighter particles: **OK.** The emulator is fast, so the automatic "display looks slow" suggestion was **not** triggered or tested.
+- Audio watchdog (2.4): killing Android's audio service during playback made the tap stop answering and be rebuilt about a second later, with the bars still reacting (`tap restarted x1`): **OK.** Starting with nothing playing falls back to the microphone after about 6 seconds and stays there (no flapping); starting music afterwards switches back to direct audio on its own: **OK.**
 - Progress bar (2.2): shows elapsed and total time from Chrome's media session, grows at the right speed (about 12 px per second for a 30 second track), freezes on pause, resumes on play, and wraps when the track loops: **OK.** Measured from screenshots, not just by eye.
 - Media-key backup: with a session that lists skip actions, Next went through the session; with a session that does not list them (actions without skip), Next and Previous went through media keys, and Pause still used the session: **OK.**
 
@@ -135,6 +153,7 @@ Version 2.1, same emulator and Chrome test source:
 - Whether the radio's audio is visible to the Visualizer. Turn on the debug badge. It should say **direct audio** while music plays. If it says **microphone**, the radio blocks the tap and the mic is being used.
 - Real-world bass response and gain. The direct audio capture has coarse low-frequency resolution (about 40 Hz per step), so the lowest bars may look alike.
 - The progress bar with real streaming apps: each app decides whether it reports a length and how often it updates the position. A restart of the bar to zero on a new song was not tested (the Chrome test page only changes the title on Next).
+- The "silent while Android says music is playing" path (restart the tap up to 3 times, then use the microphone) is written but could not be simulated on the emulator.
 - Song info and the buttons with **YouTube, Spotify and other real streaming apps**. Only a test page in Chrome was used. Apps that publish a standard media session should work the same, but apps differ in what they publish, and some give no cover art.
 - Whether the real radio has the notification-access screen, and whether "Allow restricted settings" is needed or even available there.
 - Mirror and Radial styles, Ice, Ocean and Neon themes, and the screen dimming after about 45 seconds of silence. The code is in place but these were not viewed.
@@ -147,7 +166,7 @@ Version 2.1, same emulator and Chrome test source:
 Please include:
 
 1. **What you did and what happened,** plus what you expected.
-2. **The debug badge text.** Long-press the picture and copy the top-left line, for example `direct audio | raw peak 0.42 | gain 2.1 | fps 58`. It also shows `light` when Performance: Light is on, and `media session` or `media key` after you press a Now Playing button. A screenshot works.
+2. **The debug badge text.** Long-press the picture and copy the top-left line, for example `direct audio | raw peak 0.42 | gain 2.1 | fps 58`. It also shows `light` when Performance: Light is on, `media session` or `media key` after you press a Now Playing button, `tap restarted xN` if the direct tap had to be rebuilt, and `mic fallback` while the microphone is standing in for direct audio. A screenshot works.
 3. **Which source was active** (direct audio or microphone), and whether music was playing. For Now Playing problems: which app was playing (YouTube, Spotify, ...) and whether notification access is on.
 4. **Radio details:** make and model, Android version, screen resolution, and whether the radio plays music itself or through another app.
 5. **Any on-screen message,** such as "No audio from the radio output" or "Audio unavailable: ...".
