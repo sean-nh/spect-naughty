@@ -23,6 +23,11 @@
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:44px;height:44px;border-radius:50%;background:#4f8cff;margin-top:-16px;border:3px solid #fff}
   #msg{position:fixed;top:12px;left:0;right:0;text-align:center;font-size:22px;color:#ffb86b;z-index:6;pointer-events:none}
   #badge{position:fixed;left:10px;top:8px;font-size:14px;opacity:.6;z-index:6;pointer-events:none}
+  /* small, dim clock in the top-right corner; a little brighter while the controls are showing */
+  #clock{position:fixed;top:14px;right:22px;font-size:30px;font-weight:300;letter-spacing:.04em;font-variant-numeric:tabular-nums;color:#9aa6c0;opacity:.6;z-index:3;pointer-events:none;text-shadow:0 0 10px rgba(0,0,0,.85);transition:opacity .4s}
+  #clock.hi{opacity:.9}
+  /* Performance: Light also drops the blurred card background, which is costly on weak screens */
+  body.perf #np{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(8,10,16,.82)}
   /* now playing card */
   #np{position:fixed;left:16px;top:34px;max-width:62vw;display:flex;gap:18px;align-items:center;padding:14px 20px 14px 14px;border-radius:22px;background:rgba(8,10,16,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:3;pointer-events:none}
   #npart{width:104px;height:104px;border-radius:14px;object-fit:cover;background:#1a1f2b;flex:none;display:none;transition:opacity .3s}
@@ -48,6 +53,7 @@
 <div id="msg"></div>
 <div id="badge"></div>
 <div id="idle">WAITING FOR MUSIC&hellip;</div>
+<div id="clock"></div>
 <div id="np">
   <img id="npart" alt="">
   <div id="nptxt">
@@ -72,6 +78,8 @@
   <button id="style" class="alt">Style</button>
   <button id="theme" class="alt">Theme</button>
   <button id="src" class="alt">Source</button>
+  <button id="perf" class="alt">Performance</button>
+  <button id="clk" class="alt">Clock</button>
   <button id="npen" class="alt" style="display:none">Enable Now Playing</button>
   <button id="full" class="alt">Fullscreen</button>
 </div>
@@ -79,15 +87,15 @@
 (()=>{
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
-let W=0,H=0,dpr=1;
-function resize(){dpr=Math.min(window.devicePixelRatio||1,2);W=cv.width=innerWidth*dpr;H=cv.height=innerHeight*dpr}
+let W=0,H=0,dpr=1,perfOn=false; // perfOn = "Performance: Light" (lower resolution, 30 fps, no glow)
+function resize(){dpr=Math.min(window.devicePixelRatio||1,perfOn?1:2);W=cv.width=innerWidth*dpr;H=cv.height=innerHeight*dpr}
 addEventListener('resize',resize);resize();
 
 // ---------- settings (remembered between launches) ----------
 const styles=['Bars','Mirror','Radial','Wave','Tunnel','Gauge','Waterfall','Particles'];
 // the last theme, "Album", takes its colours from the cover art of the song that is playing
 const themes=[{n:'Aurora',a:200,b:360},{n:'Fire',a:0,b:55},{n:'Ocean',a:165,b:235},{n:'Neon',a:290,b:120},{n:'Ice',a:185,b:220},{n:'Album',a:200,b:260}];
-const S={gain:2.5,bars:48,style:0,theme:0,auto:true,src:'auto'};
+const S={gain:2.5,bars:48,style:0,theme:0,auto:true,src:'auto',perf:false,clock:true};
 try{Object.assign(S,JSON.parse(localStorage.getItem('spect.settings')||'{}'))}catch(_){}
 S.style=Math.max(0,Math.min(styles.length-1,S.style|0));
 S.theme=Math.max(0,Math.min(themes.length-1,S.theme|0));
@@ -99,6 +107,8 @@ function syncUI(){
   $('auto').textContent='Auto gain: '+(S.auto?'On':'Off');$('auto').classList.toggle('on',S.auto);
   $('gainwrap').style.opacity=S.auto?.4:1;
   $('style').textContent='Style: '+styles[S.style];$('theme').textContent='Theme: '+themes[S.theme].n;
+  $('perf').textContent='Performance: '+(S.perf?'Light':'Normal');$('perf').classList.toggle('on',S.perf);
+  $('clk').textContent='Clock: '+(S.clock?'On':'Off');$('clk').classList.toggle('on',S.clock);
 }
 syncUI();if(window.Capacitor)$('full').style.display='none';
 
@@ -212,8 +222,19 @@ function rawSpectrum(n){
 const hue=(i,n)=>{const t=themes[S.theme];return t.a+(t.b-t.a)*(i/n)};
 
 // ---------- drawing ----------
+let lastFrame=0,fps=60,slowMs=0,slowHinted=false;
 function draw(){
   requestAnimationFrame(draw);
+  const ft=performance.now();
+  if(perfOn&&ft-lastFrame<30)return; // Light mode: about 30 frames per second
+  const ivl=ft-lastFrame;lastFrame=ft;
+  if(ivl>0&&ivl<250){ // measure the real frame rate, and suggest Light mode once if the screen is struggling
+    fps+=(1000/ivl-fps)*0.05;
+    if(!perfOn&&!slowHinted&&fps<22&&(mode==='native'||mode==='mic'||mode==='demo')){
+      slowMs+=ivl;
+      if(slowMs>6000){slowHinted=true;toast('The display looks slow. Try Performance: Light in the controls.',7000)}
+    }else if(fps>=22)slowMs=0;
+  }
   if(!(mode==='demo'||mode==='native'||analyser))return;
   if(mode==='native'&&!natSeen&&performance.now()-natStart>6000){ // radio gives silence: use the mic
     stopNative();toast('No audio from the radio output - listening via microphone');
@@ -253,7 +274,7 @@ function draw(){
   bass=bsum/bc;bassAvg=bassAvg*0.92+bass*0.08;
   if(bass>bassAvg*1.25&&bass>0.25)flash=1;flash*=0.9;
 
-  if(badgeOn&&(badgeN=(badgeN+1)%20)===0)$('badge').textContent=(mode==='native'?'direct audio':mode==='mic'?'microphone':mode)+' | raw peak '+mx.toFixed(2)+' | gain '+gEff.toFixed(1)+(idleT>2?' | idle':'');
+  if(badgeOn&&(badgeN=(badgeN+1)%20)===0)$('badge').textContent=(mode==='native'?'direct audio':mode==='mic'?'microphone':mode)+' | raw peak '+mx.toFixed(2)+' | gain '+gEff.toFixed(1)+(idleT>2?' | idle':'')+' | fps '+Math.round(fps)+(perfOn?' | light':'')+(npVia?' | media '+npVia:'');
 
   ctx.fillStyle='rgba(5,6,10,0.35)';ctx.fillRect(0,0,W,H);
   const th=themes[S.theme],gh=th.a+(th.b-th.a)*0.3;
@@ -382,15 +403,15 @@ let parts=[];
 function drawParticles(n,dt,now){
   const cx=W/2,cy=H*0.5,base=Math.min(W,H);
   if(flash>0.6&&now-lastSpawn>110){
-    lastSpawn=now;const cnt=26+Math.round(bass*40);
+    lastSpawn=now;const cnt=Math.round((26+bass*40)*(perfOn?0.5:1));
     for(let k=0;k<cnt;k++){const a=Math.random()*Math.PI*2,sp=(0.25+Math.random()*0.9)*base*(0.5+bass);
       parts.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,dec:0.35+Math.random()*0.5,h:hue(Math.random()*n,n),s:(2+Math.random()*4)*dpr})}
   }
   const stepI=Math.max(1,Math.floor(n/24));
   for(let i=0;i<n;i+=stepI){
-    if(Math.random()<vals[i]*0.5*dt*60)parts.push({x:(i+0.5)/n*W,y:H*0.96,vx:(Math.random()-0.5)*base*0.08,vy:-(0.25+vals[i]*0.9)*base*(0.7+Math.random()*0.6),life:1,dec:0.4+Math.random()*0.5,h:hue(i,n),s:(1.5+Math.random()*3)*dpr});
+    if(Math.random()<vals[i]*(perfOn?0.25:0.5)*dt*60)parts.push({x:(i+0.5)/n*W,y:H*0.96,vx:(Math.random()-0.5)*base*0.08,vy:-(0.25+vals[i]*0.9)*base*(0.7+Math.random()*0.6),life:1,dec:0.4+Math.random()*0.5,h:hue(i,n),s:(1.5+Math.random()*3)*dpr});
   }
-  if(parts.length>600)parts.splice(0,parts.length-600);
+  const pmax=perfOn?220:600;if(parts.length>pmax)parts.splice(0,parts.length-pmax);
   ctx.globalCompositeOperation='lighter';
   for(let k=parts.length-1;k>=0;k--){
     const p=parts[k];p.life-=p.dec*dt;if(p.life<=0){parts.splice(k,1);continue}
@@ -458,9 +479,10 @@ async function npInit(){
     await sleep(en?6000:2500);
   }
 }
+let npVia=''; // how the last button press was sent: "session" (the app's own controls) or "key" (media key)
 function npControl(a){
   if(a==='toggle'){np.playing=!np.playing;npRender()}
-  if(window.Capacitor&&window.Capacitor.nativePromise)natMedia('control',{action:a}).catch(()=>{});
+  if(window.Capacitor&&window.Capacitor.nativePromise)natMedia('control',{action:a}).then(r=>{npVia=(r&&r.via)||''}).catch(()=>{});
 }
 $('prev').onclick=()=>npControl('prev');
 $('pp').onclick=()=>npControl('toggle');
@@ -472,6 +494,27 @@ $('npen').onclick=async()=>{
 };
 npRender();
 npInit();
+
+// ---------- clock (small and dim, top right) ----------
+const clockFmt=new Intl.DateTimeFormat([],{hour:'numeric',minute:'2-digit'}); // follows the radio's 12 / 24 hour setting
+let lastClock='';
+function tickClock(){
+  const el=$('clock');el.style.display=S.clock?'':'none';
+  if(!S.clock)return;
+  const t=clockFmt.format(new Date());
+  if(t!==lastClock){lastClock=t;el.textContent=t}
+}
+tickClock();setInterval(tickClock,1000);
+
+// ---------- performance: Light = ~30 fps, lower resolution, no glow, fewer particles ----------
+function applyPerf(){
+  perfOn=!!S.perf;
+  document.body.classList.toggle('perf',perfOn);
+  if(perfOn)Object.defineProperty(ctx,'shadowBlur',{configurable:true,get(){return 0},set(v){}}); // glow is the costliest canvas effect
+  else delete ctx.shadowBlur;
+  resize();wfc=null;
+}
+applyPerf();
 
 draw();
 if(window.Capacitor)startAuto(); // auto-start inside the Android app
@@ -485,9 +528,11 @@ function changeTheme(d){S.theme=(S.theme+d+themes.length)%themes.length;syncUI()
 $('style').onclick=()=>changeStyle(1);
 $('theme').onclick=()=>changeTheme(1);
 $('src').onclick=toggleSource;
+$('perf').onclick=()=>{S.perf=!S.perf;save();applyPerf();syncUI();toast(S.perf?'Performance: Light (lower detail, smoother on slow screens)':'Performance: Normal')};
+$('clk').onclick=()=>{S.clock=!S.clock;save();tickClock();syncUI();toast('Clock '+(S.clock?'on':'off'))};
 $('full').onclick=()=>{const d=document.documentElement;document.fullscreenElement?document.exitFullscreen():(d.requestFullscreen&&d.requestFullscreen())};
 
-let hideT;function hideLater(){clearTimeout(hideT);$('bar').classList.remove('hide');$('np').classList.add('ctl');hideT=setTimeout(()=>{$('bar').classList.add('hide');$('np').classList.remove('ctl')},6000)}
+let hideT;function hideLater(){clearTimeout(hideT);$('bar').classList.remove('hide');$('np').classList.add('ctl');$('clock').classList.add('hi');hideT=setTimeout(()=>{$('bar').classList.add('hide');$('np').classList.remove('ctl');$('clock').classList.remove('hi')},6000)}
 ['pointerdown','pointermove','keydown'].forEach(ev=>addEventListener(ev,()=>{if($('start').style.display!=='flex')hideLater()}));
 // long-press on the picture (not on the controls) toggles the small debug badge
 let lpT,sw=null;

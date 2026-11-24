@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.util.Base64;
+import android.util.Log;
 import android.view.KeyEvent;
 import androidx.core.app.NotificationManagerCompat;
 import com.getcapacitor.JSObject;
@@ -137,22 +138,26 @@ public class NowPlayingPlugin extends Plugin {
         final PluginCall c = call;
         h.post(() -> {
             boolean done = false;
+            String via = "none";
             MediaController mc = cur;
             if (mc != null) {
-                try {
-                    MediaController.TransportControls t = mc.getTransportControls();
-                    switch (action) {
-                        case "next": t.skipToNext(); done = true; break;
-                        case "prev": t.skipToPrevious(); done = true; break;
-                        case "play": t.play(); done = true; break;
-                        case "pause": t.pause(); done = true; break;
-                        case "toggle":
-                            if (isPlaying(mc.getPlaybackState())) t.pause(); else t.play();
-                            done = true;
-                            break;
-                        default: break;
-                    }
-                } catch (Throwable ignored) { }
+                // Use the app's own media session only if it says it supports the action; otherwise the
+                // media-key path below is used instead. One path or the other, never both, so a tap can't skip twice.
+                PlaybackState st = mc.getPlaybackState();
+                String act = "toggle".equals(action) ? (isPlaying(st) ? "pause" : "play") : action;
+                if (supports(st, act)) {
+                    try {
+                        MediaController.TransportControls t = mc.getTransportControls();
+                        switch (act) {
+                            case "next": t.skipToNext(); done = true; break;
+                            case "prev": t.skipToPrevious(); done = true; break;
+                            case "play": t.play(); done = true; break;
+                            case "pause": t.pause(); done = true; break;
+                            default: break;
+                        }
+                        if (done) via = "session";
+                    } catch (Throwable ignored) { }
+                }
             }
             if (!done) {
                 int code = -1;
@@ -170,13 +175,30 @@ public class NowPlayingPlugin extends Plugin {
                         am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, code));
                         am.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, code));
                         done = true;
+                        via = "key";
                     } catch (Throwable ignored) { }
                 }
             }
+            Log.i("SpectMedia", "control " + action + " via " + via
+                + (cur != null ? " (app " + cur.getPackageName() + ")" : " (no session)"));
             JSObject r = new JSObject();
             r.put("ok", done);
+            r.put("via", via);
             c.resolve(r);
         });
+    }
+
+    /** Does the app's media session say it can do this action right now? */
+    private static boolean supports(PlaybackState s, String action) {
+        if (s == null) return false;
+        long a = s.getActions();
+        switch (action) {
+            case "next": return (a & PlaybackState.ACTION_SKIP_TO_NEXT) != 0;
+            case "prev": return (a & PlaybackState.ACTION_SKIP_TO_PREVIOUS) != 0;
+            case "play": return (a & (PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PLAY_PAUSE)) != 0;
+            case "pause": return (a & (PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE)) != 0;
+            default: return false;
+        }
     }
 
     private static boolean isPlaying(PlaybackState s) {
