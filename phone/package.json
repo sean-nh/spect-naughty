@@ -1,0 +1,11 @@
+{
+  "name": "spectrum-app-phone",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Phone / Android Auto build of Spectr-Acular. Uses the Capacitor packages installed in the parent folder.",
+  "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/core": "^8.6.2"
+  }
+}

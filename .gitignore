@@ -22,3 +22,17 @@ spec.zip
 
 # smoke test output (screenshots, logs)
 tests/results/
+
+# phone build output
+phone/android/build/
+phone/android/app/build/
+phone/android/.gradle/
+phone/android/.idea/
+phone/android/local.properties
+phone/android/capacitor-cordova-android-plugins/
+!phone/android/gradle/wrapper/gradle-wrapper.properties
+!phone/android/gradle.properties
+phone/android/app/src/main/assets/public/
+phone/android/app/src/main/assets/capacitor.*.json
+phone/android/app/src/main/assets/capacitor.config.json
+phone/android/app/src/main/res/xml/config.xml
