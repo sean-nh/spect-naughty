@@ -230,7 +230,7 @@ let rings=[],lastSpawn=0;
 const FFT=4096;
 // The phone build (app id ending in .phone) never opens the microphone by itself: on a phone that is playing music to a car,
 // opening the microphone makes Android interrupt the music. There the microphone is only used when the user picks it under Source.
-let phoneBuild=false,phoneHinted=false,capOn=false; // capOn: the phone build is reading other apps' audio (SpectCapture) instead of the output tap
+let phoneBuild=false,phoneHinted=false,capOn=false,sessTried=false,sessUsed=0; // capOn: the phone build is reading other apps' audio (SpectCapture) instead of the output tap
 const capNat=(m,o)=>window.Capacitor.nativePromise('SpectCapture',m,o||{});
 
 // ---------- audio sources ----------
@@ -296,11 +296,21 @@ async function startNative(quiet){ // quiet = a silent switch back to direct aud
   try{phoneBuild=String((await nat('info')).packageName||'').slice(-6)==='.phone'}catch(_){}
   let r;
   if(S.src==='cap'&&phoneBuild){r=await capNat('start');capOn=true;try{await nat('stop')}catch(_){}} // app audio: Android's own permission dialog appears first
-  else{capOn=false;r=await nat('start')}
+  else{capOn=false;sessTried=false;sessUsed=0;r=await nat('start',{session:0})}
   stopMic();
   srcRate=r.sampleRate||48000;srcFft=r.captureSize||1024;
   freq=new Uint8Array(srcFft>>1);natSeen=false;sigFrames=0;natStart=performance.now();lastFrameT=natStart;silentSince=0;
   mode='native';if(!quiet)begin();logEvent((capOn?'App audio capture started (':'Direct audio started (')+srcRate+' Hz'+(quiet?', back from the microphone':'')+')');
+}
+// The phone build, when the output tap is silent (sound going to a car): listen to the music app's own audio session instead
+async function tryPlayerSession(){
+  try{
+    const s=((await nat('sessions')).list)||[];
+    if(!s.length){logEvent('No sound from the output tap, and no music app has announced its audio session yet (start the song after opening this app, or skip to the next song)');return}
+    const x=s[s.length-1];
+    logEvent('No sound from the output tap: trying the audio session of '+x.pkg+' ('+x.id+')');
+    await nat('start',{session:x.id});sessUsed=x.id;natStart=performance.now();sigFrames=0;natSeen=false;
+  }catch(e){logEvent('Could not use the music app\'s audio session: '+((e&&(e.message||e.errorMessage))||e))}
 }
 async function stopNative(){try{await nat('stop')}catch(_){}if(capOn){capOn=false;try{await capNat('stop')}catch(_){}}}
 async function startAuto(){
@@ -391,7 +401,8 @@ function drawFrame(){
     }else if(fps>=22)slowMs=0;
   }
   if(!(mode==='demo'||mode==='native'||analyser))return;
-  if(mode==='native'&&!natSeen&&phoneBuild&&!phoneHinted&&performance.now()-natStart>6000){
+  if(mode==='native'&&!natSeen&&phoneBuild&&!capOn&&!sessTried&&performance.now()-natStart>5000){sessTried=true;tryPlayerSession()}
+  if(mode==='native'&&!natSeen&&phoneBuild&&!phoneHinted&&performance.now()-natStart>(sessUsed?14000:6000)){
     phoneHinted=true;logEvent('No sound heard yet (phone build: staying on direct audio, the microphone is not started by itself)');toast('Waiting for music. Use Source to listen through the microphone instead.',6000);
   }
   if(mode==='native'&&!natSeen&&!phoneBuild&&performance.now()-natStart>6000){ // radio gives silence: use the mic
@@ -1134,6 +1145,7 @@ async function buildReport(){
   L.push('');
   L.push('Audio source: '+(mode==='native'?(capOn?'app audio capture':'direct audio'):mode==='mic'?'microphone':mode)+(fellBack&&mode==='mic'?' (fallback)':''));
   L.push('Audio permission: '+(info.audioGranted===undefined?'?':info.audioGranted?'granted':'NOT granted'));
+  try{const ss=((await nat('sessions')).list)||[];L.push('Music app audio sessions seen: '+(ss.length?ss.map(x=>x.pkg+' '+x.id).join(', '):'none')+(sessUsed?'  (using session '+sessUsed+')':''))}catch(_){}
   L.push('Frames: last '+(lastFrameT?(Math.round((performance.now()-lastFrameT)/100)/10)+' s ago':'none yet')+', heard sound: '+(natSeen?'yes':'no')+', tap rebuilt: '+vizRestarts+' time(s), watchdog restarts: '+wdRestarts);
   L.push('Frame rate: '+Math.round(fps)+' fps'+(perfOn?' (Performance: Light)':''));
   L.push('Test tone: '+toneResult);
