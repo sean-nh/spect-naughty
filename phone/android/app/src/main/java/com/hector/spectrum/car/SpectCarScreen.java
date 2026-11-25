@@ -96,6 +96,8 @@ public class SpectCarScreen extends Screen implements SurfaceCallback {
     private void run() {
         boolean allowed = ContextCompat.checkSelfPermission(getCarContext(), Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
         com.hector.spectrum.PlayerSessions.start(getCarContext());
+        com.hector.spectrum.SpectLog.w(getCarContext(), "car screen started, audio allowed=" + allowed);
+        long lastReport = 0;
         Visualizer viz = null;
         if (allowed) {
             try {
@@ -140,6 +142,10 @@ public class SpectCarScreen extends Screen implements SurfaceCallback {
                     float top = 1, rawTop = 0;
                     for (float v : raw) { top = Math.max(top, v); rawTop = Math.max(rawTop, v); }
                     long nowMs = System.currentTimeMillis();
+                    if (nowMs - lastReport > 10000) {
+                        lastReport = nowMs;
+                        com.hector.spectrum.SpectLog.w(getCarContext(), "car screen: tap=" + (viz != null) + " session=" + curSession + " level=" + rawTop + " announced=" + com.hector.spectrum.PlayerSessions.latest());
+                    }
                     if (rawTop > 0) lastSound = nowMs;
                     else if (allowed && nowMs - lastSound > 3000 && nowMs - lastTry > 3000) {
                         // The global tap hears nothing (the music goes to the car). Try the playing app's own audio session.
@@ -159,9 +165,11 @@ public class SpectCarScreen extends Screen implements SurfaceCallback {
                                 curSession = pick;
                                 triedIds.add(pick);
                                 android.util.Log.i("SpectViz", "car screen: listening to player session " + pick);
+                                com.hector.spectrum.SpectLog.w(getCarContext(), "car screen: switched to player session " + pick);
                             } catch (Throwable t) {
                                 triedIds.add(pick);
                                 android.util.Log.w("SpectViz", "car screen: session " + pick + " refused: " + t);
+                                com.hector.spectrum.SpectLog.w(getCarContext(), "car screen: session " + pick + " refused: " + t);
                             }
                         }
                     }

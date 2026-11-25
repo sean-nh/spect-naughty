@@ -22,6 +22,7 @@ public final class PlayerSessions {
     private static final String TAG = "SpectViz";
     private static final Map<String, Integer> sessions = new LinkedHashMap<>();
     private static boolean registered;
+    private static Context appCtx;
 
     private PlayerSessions() { }
 
@@ -37,9 +38,11 @@ public final class PlayerSessions {
                         sessions.remove(pkg);
                         sessions.put(pkg, id);
                         Log.i(TAG, "audio session opened: " + pkg + " " + id);
+                        SpectLog.w(c, "player session opened: " + pkg + " " + id);
                     } else {
                         sessions.remove(pkg);
                         Log.i(TAG, "audio session closed: " + pkg);
+                        SpectLog.w(c, "player session closed: " + pkg);
                     }
                 }
             } catch (Throwable ignored) { }
@@ -55,6 +58,8 @@ public final class PlayerSessions {
             f.addAction(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION);
             ContextCompat.registerReceiver(ctx.getApplicationContext(), RECEIVER, f, ContextCompat.RECEIVER_EXPORTED);
             registered = true;
+            appCtx = ctx.getApplicationContext();
+            SpectLog.w(appCtx, "listening for player sessions (process " + android.os.Process.myPid() + ")");
         } catch (Throwable t) {
             Log.w(TAG, "could not listen for player sessions: " + t);
         }
