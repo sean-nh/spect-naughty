@@ -23,6 +23,11 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(VisualizerPlugin.class);
         registerPlugin(NowPlayingPlugin.class);
+        try { // only the phone build contains this plugin (app-audio capture); the radio build simply does not find it
+            @SuppressWarnings("unchecked")
+            Class<? extends com.getcapacitor.Plugin> cap = (Class<? extends com.getcapacitor.Plugin>) Class.forName("com.hector.spectrum.CapturePlugin");
+            registerPlugin(cap);
+        } catch (Throwable ignored) { }
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         hideBars();

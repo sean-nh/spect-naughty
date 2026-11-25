@@ -230,7 +230,8 @@ let rings=[],lastSpawn=0;
 const FFT=4096;
 // The phone build (app id ending in .phone) never opens the microphone by itself: on a phone that is playing music to a car,
 // opening the microphone makes Android interrupt the music. There the microphone is only used when the user picks it under Source.
-let phoneBuild=false,phoneHinted=false;
+let phoneBuild=false,phoneHinted=false,capOn=false; // capOn: the phone build is reading other apps' audio (SpectCapture) instead of the output tap
+const capNat=(m,o)=>window.Capacitor.nativePromise('SpectCapture',m,o||{});
 
 // ---------- audio sources ----------
 async function startMicOnly(){
@@ -293,27 +294,35 @@ async function startNative(quiet){ // quiet = a silent switch back to direct aud
     await new Promise(r=>setTimeout(r,500));
   }
   try{phoneBuild=String((await nat('info')).packageName||'').slice(-6)==='.phone'}catch(_){}
-  const r=await nat('start');
+  let r;
+  if(S.src==='cap'&&phoneBuild){r=await capNat('start');capOn=true;try{await nat('stop')}catch(_){}} // app audio: Android's own permission dialog appears first
+  else{capOn=false;r=await nat('start')}
   stopMic();
   srcRate=r.sampleRate||48000;srcFft=r.captureSize||1024;
   freq=new Uint8Array(srcFft>>1);natSeen=false;sigFrames=0;natStart=performance.now();lastFrameT=natStart;silentSince=0;
-  mode='native';if(!quiet)begin();logEvent('Direct audio started ('+srcRate+' Hz'+(quiet?', back from the microphone':'')+')');
+  mode='native';if(!quiet)begin();logEvent((capOn?'App audio capture started (':'Direct audio started (')+srcRate+' Hz'+(quiet?', back from the microphone':'')+')');
 }
-async function stopNative(){try{await nat('stop')}catch(_){}}
+async function stopNative(){try{await nat('stop')}catch(_){}if(capOn){capOn=false;try{await capNat('stop')}catch(_){}}}
 async function startAuto(){
+  if(S.src==='cap')S.src='auto'; // app-audio capture needs Android's permission dialog every time, so it is never started by itself
   if(S.src==='mic'||!window.Capacitor)return startMicOnly();
   try{await startNative()}
   catch(e){natErr=(e&&(e.message||e.errorMessage))||String(e);logEvent('Direct audio unavailable: '+natErr+' -> using the microphone');await startMicOnly()}
 }
 async function toggleSource(){
-  if(mode==='native'){
+  // direct audio -> (phone build only: app audio) -> microphone -> direct audio
+  if(mode==='native'&&!capOn&&phoneBuild){
+    toast('Android will ask to capture app audio. Nothing is recorded or saved.',5000);
+    S.src='cap';await stopNative();
+    try{await startNative()}catch(e){S.src='auto';toast('App audio unavailable: '+(e.message||e));try{await startNative()}catch(_){}}
+  }else if(mode==='native'){
     S.src='mic';await stopNative();
     if(analyser)mode='mic';else await startMicOnly();
   }else if(window.Capacitor){
     S.src='auto';
     try{await startNative()}catch(e){toast('Direct audio unavailable: '+(e.message||e))}
   }
-  save();toast(mode==='native'?'Source: direct audio':'Source: microphone');
+  save();toast(mode==='native'?(capOn?'Source: app audio':'Source: direct audio'):'Source: microphone');
 }
 $('go').onclick=startAuto;
 $('demo').onclick=()=>{mode='demo';begin();np={title:'Demo Track',artist:'Spectr-Acular',album:'',app:'Demo',playing:true,art:'',pos:62000,dur:213000,speed:1,t0:performance.now()};npRender()};
@@ -427,7 +436,7 @@ function drawFrame(){
   bass=bsum/bc;bassAvg=bassAvg*0.92+bass*0.08;
   if(bass>bassAvg*1.25&&bass>0.25)flash=1;flash*=0.9;
 
-  if(badgeOn&&(badgeN=(badgeN+1)%20)===0)$('badge').textContent=(mode==='native'?'direct audio':mode==='mic'?'microphone':mode)+' | raw peak '+mx.toFixed(2)+' | gain '+gEff.toFixed(1)+(idleT>2?' | idle':'')+' | fps '+Math.round(fps)+(perfOn?' | light':'')+(npVia?' | media '+npVia:'')+(vizRestarts?' | tap restarted x'+vizRestarts:'')+(fellBack&&mode==='mic'?' | mic fallback':'');
+  if(badgeOn&&(badgeN=(badgeN+1)%20)===0)$('badge').textContent=(mode==='native'?(capOn?'app audio capture':'direct audio'):mode==='mic'?'microphone':mode)+' | raw peak '+mx.toFixed(2)+' | gain '+gEff.toFixed(1)+(idleT>2?' | idle':'')+' | fps '+Math.round(fps)+(perfOn?' | light':'')+(npVia?' | media '+npVia:'')+(vizRestarts?' | tap restarted x'+vizRestarts:'')+(fellBack&&mode==='mic'?' | mic fallback':'');
 
   ctx.fillStyle='rgba(5,6,10,0.35)';ctx.fillRect(0,0,W,H);
   const th=themes[S.theme],gh=th.a+(th.b-th.a)*0.3;
@@ -729,6 +738,7 @@ async function watchdog(){
   const now=performance.now();
   wdBusy=true;
   try{
+    if(capOn)return; // app-audio capture has no output tap to restart
     if(mode==='native'&&natSeen){
       let why='';
       if(now-lastFrameT>3000)why='no frames';
@@ -1122,7 +1132,7 @@ async function buildReport(){
   L.push('WebView: '+(info.webView||'?')+'   [page engine: Chrome '+chrome+']');
   L.push('Screen: '+innerWidth+'x'+innerHeight+' css px, density '+(window.devicePixelRatio||1)+', canvas '+W+'x'+H);
   L.push('');
-  L.push('Audio source: '+(mode==='native'?'direct audio':mode==='mic'?'microphone':mode)+(fellBack&&mode==='mic'?' (fallback)':''));
+  L.push('Audio source: '+(mode==='native'?(capOn?'app audio capture':'direct audio'):mode==='mic'?'microphone':mode)+(fellBack&&mode==='mic'?' (fallback)':''));
   L.push('Audio permission: '+(info.audioGranted===undefined?'?':info.audioGranted?'granted':'NOT granted'));
   L.push('Frames: last '+(lastFrameT?(Math.round((performance.now()-lastFrameT)/100)/10)+' s ago':'none yet')+', heard sound: '+(natSeen?'yes':'no')+', tap rebuilt: '+vizRestarts+' time(s), watchdog restarts: '+wdRestarts);
   L.push('Frame rate: '+Math.round(fps)+' fps'+(perfOn?' (Performance: Light)':''));

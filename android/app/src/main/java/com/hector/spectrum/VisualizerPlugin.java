@@ -47,6 +47,12 @@ public class VisualizerPlugin extends Plugin {
         instance = this;
     }
 
+    /** Lets another audio source (the phone build's app-audio capture) send frames to the page as if they came from the tap. */
+    static void emitFrame(JSObject o) {
+        VisualizerPlugin p = instance;
+        if (p != null) p.notifyListeners("fft", o);
+    }
+
     /** MainActivity calls this with the answer to the audio permission dialog. */
     static void deliverAudioResult(boolean granted) {
         VisualizerPlugin p = instance;

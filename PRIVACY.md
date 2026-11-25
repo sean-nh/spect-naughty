@@ -18,6 +18,10 @@ Earlier note, for honesty: versions 1.2 to 1.6 had a news ticker that downloaded
 
 The app explains each permission on screen **before** Android asks, and you can say no. If you update from an older version that already had audio access, nothing is asked again.
 
+## Phone version only: capturing app audio (optional)
+
+In the phone version you can choose **Source: app audio**. Android then shows its own permission dialog (worded as screen sharing). If you allow it, the app reads the sound other apps play, in memory, only to draw the graphics. Nothing is recorded, saved or sent anywhere (the app has no internet permission). Android shows a notification while it is on, and it is off again after you close the app or choose another source.
+
 ## What stays on the device
 
 - Your display settings (style, theme, bars and so on).
