@@ -68,6 +68,17 @@
   @keyframes slidein{from{opacity:0;margin-left:-16px}to{opacity:1;margin-left:0}}
   #npart.pop{animation:pop .7s ease-out}
   #nptxt.pop{animation:slidein .6s ease-out}
+  /* first-run explanation and privacy screens */
+  #intro,#priv{position:fixed;top:0;right:0;bottom:0;left:0;display:none;align-items:center;justify-content:center;background:#05060a;z-index:10;padding:24px}
+  #priv{z-index:11}
+  #intro.show,#priv.show{display:flex}
+  .card{max-width:920px;max-height:100%;overflow:auto;touch-action:pan-y;padding:8px 16px;-webkit-user-select:text;user-select:text}
+  .card h2{margin:0 0 14px;font-size:34px;font-size:clamp(26px,4vw,44px);letter-spacing:.02em}
+  .card p,.card li{font-size:20px;font-size:clamp(16px,2.2vw,26px);line-height:1.45;color:#cfd6e4}
+  .card ul{margin:12px 0 18px;padding-left:26px}
+  .card li{margin:8px 0}
+  .card .btns{margin-top:22px}
+  .card .btns button{margin:6px 14px 6px 0}
   /* diagnostics screen */
   #diag{position:fixed;top:0;right:0;bottom:0;left:0;display:none;flex-direction:column;background:rgba(5,6,10,.97);z-index:8;padding:18px}
   #diag.show{display:flex}
@@ -110,9 +121,23 @@
   <button id="clk" class="alt">Clock</button>
   <button id="rot" class="alt">Rotate</button>
   <button id="dg" class="alt">Diagnostics</button>
+  <button id="pv" class="alt">Privacy</button>
   <button id="npen" class="alt" style="display:none">Enable Now Playing</button>
   <button id="full" class="alt">Fullscreen</button>
 </div>
+<div id="intro"><div class="card"><h2 id="introh"></h2><div id="introtxt"></div><div class="btns" id="introbtns"></div></div></div>
+<div id="priv"><div class="card"><h2>Privacy</h2>
+<div class="btns" style="margin:0 0 10px"><button id="privset" class="alt">Open Android settings</button><button id="privclose">Close</button></div>
+<p>Spectr-Acular does not collect, store or share any personal data.</p>
+<ul>
+<li><b>No internet access.</b> The app has no internet permission, so it cannot send anything off this device. There are no accounts, ads, analytics or tracking.</li>
+<li><b>Audio access.</b> Android requires this permission to let an app analyse the sound being played. The app does that in memory to draw the graphics. Nothing is recorded or saved. If the radio's audio cannot be read directly, the microphone is used instead, and Android shows its microphone indicator while it is.</li>
+<li><b>Song info (optional notification access).</b> The app only looks at the title, artist, cover and play state that music apps publish, and sends play, pause, next and previous. It does not read, store or send your notifications or messages.</li>
+<li><b>What stays on the device.</b> Your display settings and a short log of app events for the Diagnostics screen. Uninstalling the app deletes them.</li>
+<li><b>Your control.</b> You can change or withdraw any permission in Android Settings, Apps, Spectr-Acular.</li>
+</ul>
+<p>The full text is in PRIVACY.md in the project's GitHub repository.</p>
+</div></div>
 <div id="diag"><pre id="diagtxt"></pre><div id="diagbtns"><button id="dcopy">Copy report</button><button id="dtone" class="alt">Test tone (4 s)</button><button id="dclose" class="alt">Close</button></div></div>
 <script>
 (()=>{
@@ -795,7 +820,7 @@ function drawRipples(dt,now){
   ctx.restore();
 }
 addEventListener('pointerdown',e=>{
-  if(e.target.closest&&e.target.closest('#bar,#start,#np,#diag,#clock'))return;
+  if(e.target.closest&&e.target.closest('#bar,#start,#np,#diag,#clock,#intro,#priv'))return;
   addRipple(e.clientX,e.clientY);
 });
 
@@ -900,6 +925,74 @@ setInterval(()=>{ // Rotate: 2 min. Not while you are using the screen, and not 
   if(S.rot!==1||egg||party||Date.now()-lastTouch<20000)return;
   if(mode==='native'||mode==='mic'||mode==='demo')changeStyle(1,true);
 },120000);
+
+// ---------- first run: explain, then ask (and the Privacy screen) ----------
+// The app no longer asks Android for audio access the moment it opens. If access is missing, it first says what the
+// permission is for and what the app does and does not do with it, and only then shows Android's own question.
+let audioAnswer=null,introKind='';
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(_){return null}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(_){}};
+const INTRO={
+  audio:{h:'Allow audio access',html:
+    '<p>Spectr-Acular draws the music as moving graphics. For that, Android requires this permission, so the app can analyse the sound that is playing on this device.</p>'+
+    '<ul><li>Nothing is recorded, saved or sent anywhere. The app has no internet access at all.</li>'+
+    '<li>If the radio\'s audio cannot be read directly, the app listens through the microphone instead, and Android shows its microphone indicator while it does.</li></ul>',
+    btns:()=>[['Continue',askAudio],['Privacy details',openPriv,1],['Demo without audio',introDemo,1]]},
+  denied:{h:'Audio access is off',html:
+    '<p>Without audio access the app cannot hear the music, so there is nothing to draw.</p>'+
+    '<ul><li>Tap <b>Try again</b> to see Android\'s question once more.</li>'+
+    '<li>If Android does not ask again, tap <b>Open Android settings</b>, then Permissions, and allow the microphone / audio.</li></ul>',
+    btns:()=>[['Try again',askAudio],['Open Android settings',()=>natVis('openAppSettings').catch(()=>{}),1],['Demo without audio',introDemo,1]]},
+  song:{h:'Song title and cover art (optional)',html:
+    '<p>Spectr-Acular can show what is playing (title, artist, cover, progress) and give you previous, play and next buttons. For that, Android asks you to switch on <b>Notification access</b> for this app.</p>'+
+    '<ul><li>The app only looks at what music apps publish about the current song. It does not read, store or send your notifications or messages.</li>'+
+    '<li>It is optional. The visualizer works without it, and the play, next and previous buttons still work.</li>'+
+    '<li>On some Android versions the switch looks greyed out for apps installed from a file: open the app\'s info page, tap the three-dot menu, then <b>Allow restricted settings</b>.</li></ul>',
+    btns:()=>[['Turn it on',songOn],['Not now',songLater,1]]}
+};
+function showIntro(kind){
+  introKind=kind;const d=INTRO[kind];
+  $('introh').textContent=d.h;$('introtxt').innerHTML=d.html;
+  const b=$('introbtns');b.textContent='';
+  d.btns().forEach(x=>{const el=document.createElement('button');el.textContent=x[0];if(x[2])el.className='alt';el.onclick=x[1];b.appendChild(el)});
+  $('intro').classList.add('show');
+}
+function endIntro(){introKind='';$('intro').classList.remove('show');startAuto()}
+function introDemo(){introKind='';$('intro').classList.remove('show');$('demo').onclick()}
+async function askAudio(){
+  audioAnswer=null;
+  let r={};try{r=await natVis('requestAudio')}catch(_){}
+  if(r.granted){introAfterAudio();return}
+  logEvent('Asked Android for audio access');
+  for(let i=0;i<240&&audioAnswer===null;i++){ // up to two minutes for the answer
+    await sleep(500);
+    try{if((await natVis('granted')).granted)audioAnswer=true}catch(_){}
+  }
+  if(audioAnswer===true)introAfterAudio();
+  else{logEvent('Audio access was not allowed');showIntro('denied')}
+}
+async function introAfterAudio(){
+  logEvent('Audio access allowed');
+  let en=false;try{en=!!(await natMedia('start')).enabled}catch(_){}
+  if(!en&&!lsGet('spect.introSong')){showIntro('song');return}
+  endIntro();
+}
+function songOn(){lsSet('spect.introSong','1');natMedia('openSettings').catch(()=>{});toast('Switch on '+document.title+'. If it is greyed out: App info, menu, Allow restricted settings.',9000);endIntro()}
+function songLater(){lsSet('spect.introSong','1');endIntro()}
+async function bootFlow(){
+  for(let i=0;i<50&&!(window.Capacitor&&window.Capacitor.nativePromise&&window.Capacitor.addListener);i++)await sleep(100);
+  const C=window.Capacitor;
+  if(!C||!C.nativePromise||!C.addListener)return startAuto();
+  C.addListener('SpectVisualizer','audioPermission',e=>{audioAnswer=!!(e&&e.granted)});
+  let g=false;try{g=!!(await natVis('granted')).granted}catch(_){}
+  if(g)return startAuto(); // already allowed (this also covers anyone updating from an older version): nothing to explain
+  logEvent('No audio access yet: showing the explanation first');
+  showIntro('audio');
+}
+function openPriv(){$('priv').classList.add('show')}
+$('pv').onclick=openPriv;
+$('privclose').onclick=()=>$('priv').classList.remove('show');
+$('privset').onclick=()=>{if(window.Capacitor&&window.Capacitor.nativePromise)natVis('openAppSettings').catch(()=>{});else toast('Open Android Settings, Apps, Spectr-Acular, Permissions.',5000)};
 
 // ---------- test tone & self-test ----------
 // Plays a short tone through the app's own audio and checks whether the direct audio tap (or, if the microphone is in use,
@@ -1035,7 +1128,7 @@ $('dcopy').onclick=async()=>{
 };
 
 draw();
-if(window.Capacitor)startAuto(); // auto-start inside the Android app
+if(window.Capacitor)bootFlow(); // inside the Android app: explain and ask for audio access first if needed, then start
 
 // ---------- controls ----------
 $('gain').oninput=e=>{S.gain=+e.target.value;S.auto=false;gEff=S.gain;syncUI();save()};
@@ -1056,7 +1149,7 @@ let hideT;function hideLater(){clearTimeout(hideT);$('bar').classList.remove('hi
 // long-press on the picture (not on the controls) toggles the small debug badge
 let lpT,sw=null;
 addEventListener('pointerdown',e=>{
-  if(e.target.closest&&e.target.closest('#bar,#start,#np,#diag,#clock'))return;
+  if(e.target.closest&&e.target.closest('#bar,#start,#np,#diag,#clock,#intro,#priv'))return;
   clearTimeout(lpT);lpT=setTimeout(()=>{badgeOn=!badgeOn;$('badge').textContent='';toast('Debug info '+(badgeOn?'on':'off'))},900);
   sw={x:e.clientX,y:e.clientY,t:performance.now()};
 });
@@ -1074,6 +1167,7 @@ addEventListener('visibilitychange',()=>{
   if(document.hidden){logEvent('App went to the background');return}
   // back in front (for example the radio woke up): re-check everything now instead of waiting for the timers
   logEvent('App came back to the front');
+  if((introKind==='denied'||introKind==='audio')&&window.Capacitor&&window.Capacitor.nativePromise){natVis('granted').then(x=>{if(x&&x.granted)introAfterAudio()}).catch(()=>{})} // allowed in Settings meanwhile
   try{navigator.wakeLock&&navigator.wakeLock.request('screen')}catch(_){}
   tickClock();
   if(window.Capacitor&&window.Capacitor.nativePromise)natMedia('start').catch(()=>{});

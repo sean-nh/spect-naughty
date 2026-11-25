@@ -12,6 +12,7 @@ import android.webkit.WebView;
 import android.media.audiofx.Visualizer;
 import android.util.Base64;
 import android.util.Log;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -38,11 +39,62 @@ public class VisualizerPlugin extends Plugin {
             == PackageManager.PERMISSION_GRANTED;
     }
 
-    /** The activity asks for the permission at launch; the page polls this until it is granted. */
+    static final int AUDIO_REQUEST = 77;
+    private static VisualizerPlugin instance;
+
+    @Override
+    public void load() {
+        instance = this;
+    }
+
+    /** MainActivity calls this with the answer to the audio permission dialog. */
+    static void deliverAudioResult(boolean granted) {
+        VisualizerPlugin p = instance;
+        if (p == null) return;
+        JSObject o = new JSObject();
+        o.put("granted", granted);
+        p.notifyListeners("audioPermission", o);
+    }
+
+    /** Is audio access allowed right now? */
     @PluginMethod
     public void granted(PluginCall call) {
         JSObject r = new JSObject();
         r.put("granted", hasAudioPermission());
+        call.resolve(r);
+    }
+
+    /** Shows Android's audio permission dialog. The page calls this only after it has explained why (first-run screen). */
+    @PluginMethod
+    public void requestAudio(PluginCall call) {
+        JSObject r = new JSObject();
+        if (hasAudioPermission()) {
+            r.put("granted", true);
+            call.resolve(r);
+            return;
+        }
+        try {
+            ActivityCompat.requestPermissions(getActivity(), new String[] { Manifest.permission.RECORD_AUDIO }, AUDIO_REQUEST);
+            r.put("granted", false);
+            r.put("asked", true);
+            call.resolve(r);
+        } catch (Throwable t) {
+            call.reject("Could not ask for audio access: " + t.getMessage());
+        }
+    }
+
+    /** Opens this app's page in Android Settings (where every permission can be changed). */
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        JSObject r = new JSObject();
+        try {
+            Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + getContext().getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            r.put("opened", true);
+        } catch (Throwable t) {
+            r.put("opened", false);
+        }
         call.resolve(r);
     }
 

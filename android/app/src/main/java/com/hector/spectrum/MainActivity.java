@@ -27,10 +27,8 @@ public class MainActivity extends BridgeActivity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         hideBars();
 
-        // Ask for audio access up front (Capacitor's own WebView permission launcher crashes on some devices).
-        if (!audioGranted()) {
-            ActivityCompat.requestPermissions(this, new String[] { Manifest.permission.RECORD_AUDIO }, 77);
-        }
+        // Audio access is NOT requested here any more. The page first explains why the app needs it (first-run screen),
+        // and only then asks, through VisualizerPlugin.requestAudio.
         // Answer the page's microphone requests directly from the already-granted Android permission.
         getBridge().getWebView().setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
             @Override
@@ -41,6 +39,15 @@ public class MainActivity extends BridgeActivity {
                 });
             }
         });
+    }
+
+    /** The answer to the audio permission dialog is passed on to the page. */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == VisualizerPlugin.AUDIO_REQUEST) {
+            VisualizerPlugin.deliverAudioResult(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED);
+        }
     }
 
     @Override
