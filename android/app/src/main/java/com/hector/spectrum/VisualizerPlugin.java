@@ -49,40 +49,12 @@ public class VisualizerPlugin extends Plugin {
 
     // Music apps (Spotify and others) announce the audio session of their player with a system broadcast when playback starts.
     // Listening to that session (instead of the global output) can still work when the sound is sent to a car, where the global tap is silent.
-    private final Map<String, Integer> playerSessions = new LinkedHashMap<>();
     private volatile int session = 0; // 0 = global output mix, otherwise one player's audio session
-    private final BroadcastReceiver sessionReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context c, Intent i) {
-            try {
-                String pkg = i.getStringExtra(AudioEffect.EXTRA_PACKAGE_NAME);
-                int id = i.getIntExtra(AudioEffect.EXTRA_AUDIO_SESSION, -1);
-                if (pkg == null) return;
-                synchronized (playerSessions) {
-                    if (AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION.equals(i.getAction()) && id > 0) {
-                        playerSessions.remove(pkg);
-                        playerSessions.put(pkg, id);
-                        Log.i(TAG, "audio session opened: " + pkg + " " + id);
-                    } else {
-                        playerSessions.remove(pkg);
-                        Log.i(TAG, "audio session closed: " + pkg);
-                    }
-                }
-            } catch (Throwable ignored) { }
-        }
-    };
 
     @Override
     public void load() {
         instance = this;
-        try {
-            IntentFilter f = new IntentFilter();
-            f.addAction(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION);
-            f.addAction(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION);
-            ContextCompat.registerReceiver(getContext(), sessionReceiver, f, ContextCompat.RECEIVER_EXPORTED);
-        } catch (Throwable t) {
-            Log.w(TAG, "could not listen for player sessions: " + t);
-        }
+        PlayerSessions.start(getContext());
     }
 
     /** The audio sessions that music apps have announced since this app started: {list:[{pkg,id}]}, newest last. */
@@ -90,13 +62,11 @@ public class VisualizerPlugin extends Plugin {
     public void sessions(PluginCall call) {
         JSObject r = new JSObject();
         com.getcapacitor.JSArray a = new com.getcapacitor.JSArray();
-        synchronized (playerSessions) {
-            for (Map.Entry<String, Integer> e : playerSessions.entrySet()) {
-                JSObject o = new JSObject();
-                o.put("pkg", e.getKey());
-                o.put("id", e.getValue());
-                a.put(o);
-            }
+        for (Map.Entry<String, Integer> e : PlayerSessions.entries()) {
+            JSObject o = new JSObject();
+            o.put("pkg", e.getKey());
+            o.put("id", e.getValue());
+            a.put(o);
         }
         r.put("list", a);
         r.put("session", session);

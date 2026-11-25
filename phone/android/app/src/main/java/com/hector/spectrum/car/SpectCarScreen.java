@@ -95,6 +95,7 @@ public class SpectCarScreen extends Screen implements SurfaceCallback {
 
     private void run() {
         boolean allowed = ContextCompat.checkSelfPermission(getCarContext(), Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        com.hector.spectrum.PlayerSessions.start(getCarContext());
         Visualizer viz = null;
         if (allowed) {
             try {
@@ -109,6 +110,9 @@ public class SpectCarScreen extends Screen implements SurfaceCallback {
         float[] level = new float[BARS];
         float[] peak = new float[BARS];
         float auto = 40f;
+        long lastSound = System.currentTimeMillis(), lastTry = 0;
+        int curSession = 0;
+        java.util.List<Integer> triedIds = new java.util.ArrayList<>();
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
         text.setColor(Color.rgb(207, 214, 228));
@@ -133,8 +137,34 @@ public class SpectCarScreen extends Screen implements SurfaceCallback {
                             raw[b] = m;
                         }
                     }
-                    float top = 1;
-                    for (float v : raw) top = Math.max(top, v);
+                    float top = 1, rawTop = 0;
+                    for (float v : raw) { top = Math.max(top, v); rawTop = Math.max(rawTop, v); }
+                    long nowMs = System.currentTimeMillis();
+                    if (rawTop > 0) lastSound = nowMs;
+                    else if (allowed && nowMs - lastSound > 3000 && nowMs - lastTry > 3000) {
+                        // The global tap hears nothing (the music goes to the car). Try the playing app's own audio session.
+                        lastTry = nowMs;
+                        java.util.List<Integer> ids = com.hector.spectrum.PlayerSessions.latest();
+                        Integer pick = null;
+                        for (Integer id : ids) if (id != curSession && !triedIds.contains(id)) { pick = id; break; }
+                        if (pick == null && !triedIds.isEmpty() && !ids.isEmpty()) { triedIds.clear(); }
+                        if (pick != null) {
+                            try {
+                                Visualizer nv = new Visualizer(pick);
+                                nv.setCaptureSize(Visualizer.getCaptureSizeRange()[1]);
+                                nv.setEnabled(true);
+                                if (viz != null) { try { viz.setEnabled(false); viz.release(); } catch (Throwable ignored) { } }
+                                viz = nv;
+                                fft = new byte[nv.getCaptureSize()];
+                                curSession = pick;
+                                triedIds.add(pick);
+                                android.util.Log.i("SpectViz", "car screen: listening to player session " + pick);
+                            } catch (Throwable t) {
+                                triedIds.add(pick);
+                                android.util.Log.w("SpectViz", "car screen: session " + pick + " refused: " + t);
+                            }
+                        }
+                    }
                     auto = Math.max(20f, auto * 0.995f);
                     if (top > auto) auto = top;
                     for (int b = 0; b < BARS; b++) {
