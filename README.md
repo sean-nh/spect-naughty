@@ -111,7 +111,7 @@ The top-left card shows the cover art, song title, artist, album and the app tha
 
 Needs Node.js, Android Studio (for the SDK), and a **JDK 21** (see "Build notes").
 
-**Easiest:** `powershell -ExecutionPolicy Bypass -File tools\build.ps1`. It copies `index.html` into `www`, copies the project to a plain folder outside OneDrive (default `C:\dev\spectr-build`; node packages and Gradle caches stay there between runs), builds it there, and copies the APK back as `Spectr-Acular.apk`. OneDrive sometimes breaks Gradle with "not a regular file" errors in the project folder; building in a clean copy avoids that completely. Pass `-Jdk <folder>` if your JDK 21 is not in a folder called `jdk21` inside your user folder.
+**Easiest:** `pwsh -NoProfile -File tools\build.ps1` (PowerShell 7, recommended; Windows PowerShell 5.1 also works with `powershell -ExecutionPolicy Bypass -File tools\build.ps1`). It copies `index.html` into `www`, copies the project to a plain folder outside OneDrive (default `C:\dev\spectr-build`; node packages and Gradle caches stay there between runs), builds it there, and copies the APK back as `Spectr-Acular.apk`. OneDrive sometimes breaks Gradle with "not a regular file" errors in the project folder; building in a clean copy avoids that completely. Pass `-Jdk <folder>` if your JDK 21 is not in a folder called `jdk21` inside your user folder.
 
 The same steps by hand:
 

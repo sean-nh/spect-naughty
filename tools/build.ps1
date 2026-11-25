@@ -14,7 +14,8 @@
   The release key is read from ~\.gradle\gradle.properties (SPECT_STORE_FILE etc.), as before.
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File tools\build.ps1
+  pwsh -NoProfile -File tools\build.ps1
+  (PowerShell 7 is recommended. Windows PowerShell 5.1 also works: powershell -ExecutionPolicy Bypass -File tools\build.ps1)
 #>
 param(
   [string]$Mirror = 'C:\dev\spectr-build',
