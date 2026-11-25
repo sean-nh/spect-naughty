@@ -206,12 +206,19 @@ def check_selftest(res, is_emu, want_controls):
 def main():
     ap = argparse.ArgumentParser(description='Smoke test for Spectr-Acular (emulator, phone or radio over adb)')
     ap.add_argument('--serial', help='which device, if more than one is connected')
-    ap.add_argument('--apk', default=str(ROOT / 'Spectr-Acular.apk'))
+    ap.add_argument('--apk', default=None, help='default: Spectr-Acular.apk (or Spectr-Acular-Phone.apk with --phone)')
+    ap.add_argument('--phone', action='store_true', help='test the phone build (app id com.hector.spectanalyzery.phone) instead of the radio build')
     ap.add_argument('--no-install', action='store_true', help='test what is already installed')
     ap.add_argument('--media', action='store_true', help='also play a test song in Chrome and test the Now Playing buttons')
     ap.add_argument('--emulator-extras', action='store_true', help='also kill the audio service to prove the audio tap rebuilds (emulator / rooted only)')
     ap.add_argument('--wait', type=int, default=90, help='seconds to wait for the self-test result')
     args = ap.parse_args()
+    global PKG, ACTIVITY
+    if args.phone:
+        PKG = 'com.hector.spectanalyzery.phone'
+        ACTIVITY = PKG + '/com.hector.spectrum.MainActivity'
+    if not args.apk:
+        args.apk = str(ROOT / ('Spectr-Acular-Phone.apk' if args.phone else 'Spectr-Acular.apk'))
 
     adb = Adb(find_adb())
     serial = pick_device(adb, args.serial)
