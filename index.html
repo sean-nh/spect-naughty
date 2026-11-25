@@ -228,6 +228,9 @@ let natStatusHandle=null,sigFrames=0,lastFrameT=0,silentSince=0,vizRestarts=0,fe
 let agRef=0.3,gEff=S.gain,idleT=0,idleMix=0,badgeOn=false,badgeN=0,lastNow=performance.now();
 let rings=[],lastSpawn=0;
 const FFT=4096;
+// The phone build (app id ending in .phone) never opens the microphone by itself: on a phone that is playing music to a car,
+// opening the microphone makes Android interrupt the music. There the microphone is only used when the user picks it under Source.
+let phoneBuild=false,phoneHinted=false;
 
 // ---------- audio sources ----------
 async function startMicOnly(){
@@ -289,6 +292,7 @@ async function startNative(quiet){ // quiet = a silent switch back to direct aud
     if(i>120)throw new Error('audio permission not granted');
     await new Promise(r=>setTimeout(r,500));
   }
+  try{phoneBuild=String((await nat('info')).packageName||'').slice(-6)==='.phone'}catch(_){}
   const r=await nat('start');
   stopMic();
   srcRate=r.sampleRate||48000;srcFft=r.captureSize||1024;
@@ -378,7 +382,10 @@ function drawFrame(){
     }else if(fps>=22)slowMs=0;
   }
   if(!(mode==='demo'||mode==='native'||analyser))return;
-  if(mode==='native'&&!natSeen&&performance.now()-natStart>6000){ // radio gives silence: use the mic
+  if(mode==='native'&&!natSeen&&phoneBuild&&!phoneHinted&&performance.now()-natStart>6000){
+    phoneHinted=true;logEvent('No sound heard yet (phone build: staying on direct audio, the microphone is not started by itself)');toast('Waiting for music. Use Source to listen through the microphone instead.',6000);
+  }
+  if(mode==='native'&&!natSeen&&!phoneBuild&&performance.now()-natStart>6000){ // radio gives silence: use the mic
     fellBack=true;logEvent('No sound from the radio output after 6 s -> using the microphone');stopNative();toast('No audio from the radio output - listening via microphone');
     if(analyser)mode='mic';else{mode='none';startMicOnly()}
     return;
@@ -732,7 +739,9 @@ async function watchdog(){
       okSince=0;
       if(now-wdLast<5000)return;
       wdLast=now;
-      if(wdRestarts>=3){ // restarting does not help: use the microphone
+      if(wdRestarts>=3&&phoneBuild){ // phone build: keep trying the direct tap, but never switch on the microphone by itself
+        wdRestarts=0;wdLast=now+25000;logEvent('Watchdog: restarting did not help (phone build: staying on direct audio)');
+      }else if(wdRestarts>=3){ // restarting does not help: use the microphone
         wdRestarts=0;fellBack=true;logEvent('Watchdog: restarting did not help -> using the microphone');await stopNative();toast('Radio audio lost - listening via microphone',4000);
         if(analyser)mode='mic';else{mode='none';await startMicOnly()}
       }else{
